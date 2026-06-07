@@ -1,0 +1,520 @@
+from pathlib import Path
+
+from aws_cdk import (
+    CfnOutput,
+    Duration,
+    RemovalPolicy,
+    Stack,
+    aws_apigateway as apigw,
+    aws_cloudwatch as cloudwatch,
+    aws_dynamodb as ddb,
+    aws_iam as iam,
+    aws_lambda as _lambda,
+    aws_logs as logs,
+    aws_s3 as s3,
+    aws_sns as sns,
+    aws_bedrock as bedrock,
+)
+from constructs import Construct
+
+
+class AIDelegateStack(Stack):
+    def __init__(self, scope: Construct, construct_id: str, **kwargs):
+        super().__init__(scope, construct_id, **kwargs)
+
+        service_code_path = str(Path(__file__).resolve().parents[3] / "services")
+
+        persona_table = ddb.Table(
+            self,
+            "PersonaTable",
+            table_name=f"{construct_id}-persona",
+            partition_key=ddb.Attribute(name="persona_id", type=ddb.AttributeType.STRING),
+            billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        examples_table = ddb.Table(
+            self,
+            "StyleExamplesTable",
+            table_name=f"{construct_id}-style-examples",
+            partition_key=ddb.Attribute(name="persona_id", type=ddb.AttributeType.STRING),
+            sort_key=ddb.Attribute(name="example_id", type=ddb.AttributeType.STRING),
+            billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        examples_table.add_global_secondary_index(
+            index_name="IntentIndex",
+            partition_key=ddb.Attribute(name="intent", type=ddb.AttributeType.STRING),
+            sort_key=ddb.Attribute(name="persona_id", type=ddb.AttributeType.STRING),
+            projection_type=ddb.ProjectionType.ALL,
+        )
+
+        voice_table = ddb.Table(
+            self,
+            "VoiceProfilesTable",
+            table_name=f"{construct_id}-voice-profiles",
+            partition_key=ddb.Attribute(name="voice_profile_id", type=ddb.AttributeType.STRING),
+            billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        sessions_table = ddb.Table(
+            self,
+            "MeetingSessionsTable",
+            table_name=f"{construct_id}-meeting-sessions",
+            partition_key=ddb.Attribute(name="meeting_id", type=ddb.AttributeType.STRING),
+            sort_key=ddb.Attribute(name="event_ts", type=ddb.AttributeType.STRING),
+            billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
+            time_to_live_attribute="ttl",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        docs_bucket = s3.Bucket(
+            self,
+            "DocsBucket",
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            versioned=True,
+            enforce_ssl=True,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+        )
+
+        audit_bucket = s3.Bucket(
+            self,
+            "AuditBucket",
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            versioned=True,
+            enforce_ssl=True,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+        )
+
+        audio_bucket = s3.Bucket(
+            self,
+            "AudioBucket",
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            versioned=True,
+            enforce_ssl=True,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    id="ExpireGeneratedAudioAfter30Days",
+                    prefix="audio/",
+                    expiration=Duration.days(30),
+                )
+            ],
+        )
+
+        ssm_parameter_prefix = f"/{construct_id}"
+        elevenlabs_api_key_param = f"{ssm_parameter_prefix}/elevenlabs/api-key"
+        elevenlabs_voice_id_param = f"{ssm_parameter_prefix}/elevenlabs/voice-id"
+        recall_api_key_param = f"{ssm_parameter_prefix}/recall/api-key"
+        heygen_api_key_param = f"{ssm_parameter_prefix}/heygen/api-key"
+        heygen_avatar_id_param = f"{ssm_parameter_prefix}/heygen/avatar-id"
+        did_api_key_param = f"{ssm_parameter_prefix}/did/api-key"
+
+        guardrail = bedrock.CfnGuardrail(
+            self,
+            "AIDelegateGuardrail",
+            name=f"{construct_id}-guardrail",
+            description="Guardrail for AI Meeting Delegate restricted topics and sensitive data",
+            blocked_input_messaging="I am not authorised to answer that. I will flag it for human review.",
+            blocked_outputs_messaging="I cannot provide that response. I will flag it for human review.",
+            topic_policy_config=bedrock.CfnGuardrail.TopicPolicyConfigProperty(
+                topics_config=[
+                    bedrock.CfnGuardrail.TopicConfigProperty(
+                        name="LegalAdvice",
+                        definition="Advice, interpretation, or recommendation about legal matters, legal obligations, legal disputes, contracts, or liability.",
+                        examples=[
+                            "Can we legally terminate this contract?",
+                            "What legal position should we take?",
+                            "Are we liable for this?",
+                        ],
+                        type="DENY",
+                    ),
+                    bedrock.CfnGuardrail.TopicConfigProperty(
+                        name="MedicalAdvice",
+                        definition="Medical, clinical, diagnosis, treatment, prescription, patient-specific or healthcare advice.",
+                        examples=[
+                            "What medication should this patient take?",
+                            "Can you diagnose this symptom?",
+                            "Should the patient stop taking this medicine?",
+                        ],
+                        type="DENY",
+                    ),
+                    bedrock.CfnGuardrail.TopicConfigProperty(
+                        name="HRSalaryTermination",
+                        definition="Human resources matters including salary, compensation, hiring, firing, termination, disciplinary action, performance management, or employment disputes.",
+                        examples=[
+                            "Should we fire this person?",
+                            "Can you approve this salary increase?",
+                            "What should we say in the disciplinary meeting?",
+                        ],
+                        type="DENY",
+                    ),
+                    bedrock.CfnGuardrail.TopicConfigProperty(
+                        name="CommercialContracts",
+                        definition="Commercial negotiation, contract terms, pricing commitments, purchasing commitments, budget approval, or binding business commitments.",
+                        examples=[
+                            "Can we approve this contract?",
+                            "Can we commit to this price?",
+                            "Can you approve this budget?",
+                        ],
+                        type="DENY",
+                    ),
+                ]
+            ),
+            sensitive_information_policy_config=bedrock.CfnGuardrail.SensitiveInformationPolicyConfigProperty(
+                pii_entities_config=[
+                    bedrock.CfnGuardrail.PiiEntityConfigProperty(
+                        type="EMAIL",
+                        action="ANONYMIZE",
+                    ),
+                    bedrock.CfnGuardrail.PiiEntityConfigProperty(
+                        type="PHONE",
+                        action="ANONYMIZE",
+                    ),
+                ],
+                regexes_config=[
+                    bedrock.CfnGuardrail.RegexConfigProperty(
+                        name="AwsAccountId",
+                        description="Detects 12-digit AWS account IDs",
+                        pattern=r"\b\d{12}\b",
+                        action="ANONYMIZE",
+                    ),
+                    bedrock.CfnGuardrail.RegexConfigProperty(
+                        name="AwsAccessKey",
+                        description="Detects AWS access key IDs",
+                        pattern=r"\b(AKIA|ASIA)[A-Z0-9]{16}\b",
+                        action="BLOCK",
+                    ),
+                ],
+            ),
+        )
+
+        escalation_topic = sns.Topic(
+            self,
+            "EscalationTopic",
+            topic_name=f"{construct_id}-escalations",
+            display_name="AI Delegate escalation alerts",
+        )
+
+        common_env = {
+            "PERSONA_TABLE": persona_table.table_name,
+            "EXAMPLES_TABLE": examples_table.table_name,
+            "VOICE_TABLE": voice_table.table_name,
+            "SESSIONS_TABLE": sessions_table.table_name,
+            "DOCS_BUCKET": docs_bucket.bucket_name,
+            "AUDIT_BUCKET": audit_bucket.bucket_name,
+            "AUDIO_BUCKET": audio_bucket.bucket_name,
+            "ELEVENLABS_API_KEY_PARAM": elevenlabs_api_key_param,
+            "ELEVENLABS_VOICE_ID_PARAM": elevenlabs_voice_id_param,
+            "RECALL_API_KEY_PARAM": recall_api_key_param,
+            "HEYGEN_API_KEY_PARAM": heygen_api_key_param,
+            "HEYGEN_AVATAR_ID_PARAM": heygen_avatar_id_param,
+            "DID_API_KEY_PARAM": did_api_key_param,
+            "BEDROCK_GUARDRAIL_ID": guardrail.attr_guardrail_id,
+            "BEDROCK_GUARDRAIL_VERSION": "DRAFT",
+            "ESCALATION_TOPIC_ARN": escalation_topic.topic_arn,
+            "BEDROCK_MODEL_ID": "anthropic.claude-3-haiku-20240307-v1:0",
+            "BEDROCK_MAX_TOKENS": "450",
+            "BEDROCK_TEMPERATURE": "0.3",
+            "BEDROCK_TOP_P": "0.9",
+            "BEDROCK_READ_TIMEOUT_SECONDS": "20",
+            "BEDROCK_CONNECT_TIMEOUT_SECONDS": "5",
+            "MAX_PROMPT_TOKENS": "6000",
+            "MAX_COST_PER_RESPONSE_USD": "0.05",
+            "BEDROCK_INPUT_COST_PER_1K": "0.00025",
+            "BEDROCK_OUTPUT_COST_PER_1K": "0.00125",
+            "DEFAULT_VOICE_PROFILE_ID": "namdi-v1",
+            "LOG_LEVEL": "INFO",
+            "VECTOR_BACKEND": "s3_vectors",
+            "S3_VECTOR_BUCKET_NAME": f"{construct_id}-vectors",
+            "S3_VECTOR_INDEX_NAME": "ai-delegate-rag",
+            "S3_VECTORS_BATCH_SIZE": "50",
+            "RAG_INDEX_PREFIX": "rag-index",
+            "RAG_TOP_K": "5",
+            "RAG_CHUNK_MAX_CHARS": "1800",
+            "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+            "EMBEDDING_DIMENSIONS": "1024",
+            "ELEVENLABS_MODEL_ID": "eleven_turbo_v2_5",
+            "RETURN_PRESIGNED_AUDIO_URL": "true",
+            "AUDIO_URL_TTL_SECONDS": "900",
+            "DEFAULT_OWNER_NAME": "Namdi Onwuachu",
+            "DEFAULT_AVATAR_ID": "",
+        }
+
+        orchestrator_fn = _lambda.Function(
+            self,
+            "DelegateOrchestratorFunction",
+            function_name=f"{construct_id}-delegate-orchestrator",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="orchestrator.lambda_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(30),
+            memory_size=1024,
+            log_retention=logs.RetentionDays.ONE_MONTH,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
+
+        voice_fn = _lambda.Function(
+            self,
+            "VoiceFunction",
+            function_name=f"{construct_id}-voice-service",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="voice.lambda_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(30),
+            memory_size=1024,
+            log_retention=logs.RetentionDays.ONE_MONTH,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
+
+        rag_ingestion_fn = _lambda.Function(
+            self,
+            "RagIngestionFunction",
+            function_name=f"{construct_id}-rag-ingestion",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="rag.ingestion_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(60),
+            memory_size=1024,
+            log_retention=logs.RetentionDays.ONE_MONTH,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
+
+        seed_fn = _lambda.Function(
+            self,
+            "SeedPersonaFunction",
+            function_name=f"{construct_id}-seed-persona",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="seed.persona_seed_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(30),
+            memory_size=512,
+            log_retention=logs.RetentionDays.ONE_MONTH,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
+
+        meeting_fn = _lambda.Function(
+            self,
+            "MeetingConnectorFunction",
+            function_name=f"{construct_id}-meeting-connector",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="meeting.lambda_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(30),
+            memory_size=512,
+            log_retention=logs.RetentionDays.ONE_MONTH,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
+
+        avatar_fn = _lambda.Function(
+            self,
+            "AvatarFunction",
+            function_name=f"{construct_id}-avatar-service",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="avatar.lambda_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(30),
+            memory_size=512,
+            log_retention=logs.RetentionDays.ONE_MONTH,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
+
+        functions = [
+            orchestrator_fn,
+            voice_fn,
+            rag_ingestion_fn,
+            seed_fn,
+            meeting_fn,
+            avatar_fn,
+        ]
+
+        for fn in functions:
+            persona_table.grant_read_write_data(fn)
+            examples_table.grant_read_write_data(fn)
+            voice_table.grant_read_write_data(fn)
+            sessions_table.grant_read_write_data(fn)
+            docs_bucket.grant_read_write(fn)
+            audit_bucket.grant_read_write(fn)
+            audio_bucket.grant_read_write(fn)
+            escalation_topic.grant_publish(fn)
+
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "bedrock:InvokeModel",
+                        "bedrock:InvokeModelWithResponseStream",
+                        "bedrock:ApplyGuardrail",
+                    ],
+                    resources=["*"],
+                )
+            )
+
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["polly:SynthesizeSpeech"],
+                    resources=["*"],
+                )
+            )
+
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "s3vectors:CreateVectorBucket",
+                        "s3vectors:GetVectorBucket",
+                        "s3vectors:ListVectorBuckets",
+                        "s3vectors:CreateIndex",
+                        "s3vectors:GetIndex",
+                        "s3vectors:ListIndexes",
+                        "s3vectors:PutVectors",
+                        "s3vectors:QueryVectors",
+                        "s3vectors:GetVectors",
+                        "s3vectors:ListVectors",
+                        "s3vectors:DeleteVectors",
+                    ],
+                    resources=["*"],
+                )
+            )
+
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "ssm:GetParameter",
+                        "ssm:GetParameters",
+                        "ssm:GetParametersByPath",
+                    ],
+                    resources=[
+                        f"arn:aws:ssm:{self.region}:{self.account}:parameter/{construct_id}/*"
+                    ],
+                )
+            )
+
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["kms:Decrypt"],
+                    resources=["*"],
+                    conditions={
+                        "StringEquals": {
+                            "kms:ViaService": f"ssm.{self.region}.amazonaws.com"
+                        }
+                    },
+                )
+            )
+
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "xray:PutTraceSegments",
+                        "xray:PutTelemetryRecords",
+                    ],
+                    resources=["*"],
+                )
+            )
+
+        api = apigw.RestApi(
+            self,
+            "AIDelegateApi",
+            rest_api_name=f"{construct_id}-api",
+            description="API for the AI Meeting Delegate MVP",
+            deploy_options=apigw.StageOptions(
+                stage_name="prod",
+                tracing_enabled=True,
+                logging_level=apigw.MethodLoggingLevel.INFO,
+                data_trace_enabled=False,
+                metrics_enabled=True,
+            ),
+            default_cors_preflight_options=apigw.CorsOptions(
+                allow_origins=apigw.Cors.ALL_ORIGINS,
+                allow_methods=["GET", "POST", "OPTIONS"],
+                allow_headers=["Content-Type", "Authorization", "X-Api-Key"],
+            ),
+        )
+
+        delegate = api.root.add_resource("delegate")
+        respond = delegate.add_resource("respond")
+        respond.add_method("POST", apigw.LambdaIntegration(orchestrator_fn, proxy=True))
+
+        voice = api.root.add_resource("voice")
+        speak = voice.add_resource("speak")
+        speak.add_method("POST", apigw.LambdaIntegration(voice_fn, proxy=True))
+
+        rag = api.root.add_resource("rag")
+        ingest = rag.add_resource("ingest")
+        ingest.add_method("POST", apigw.LambdaIntegration(rag_ingestion_fn, proxy=True))
+
+        seed = api.root.add_resource("seed")
+        seed_persona = seed.add_resource("persona")
+        seed_persona.add_method("POST", apigw.LambdaIntegration(seed_fn, proxy=True))
+
+        meeting = api.root.add_resource("meeting")
+        join = meeting.add_resource("join")
+        join.add_method("POST", apigw.LambdaIntegration(meeting_fn, proxy=True))
+
+        avatar = api.root.add_resource("avatar")
+        speak_avatar = avatar.add_resource("speak")
+        speak_avatar.add_method("POST", apigw.LambdaIntegration(avatar_fn, proxy=True))
+
+        health = api.root.add_resource("health")
+        health.add_method("GET", apigw.LambdaIntegration(orchestrator_fn, proxy=True))
+
+        for fn in functions:
+            cloudwatch.Alarm(
+                self,
+                f"{fn.node.id}ErrorsAlarm",
+                metric=fn.metric_errors(period=Duration.minutes(5)),
+                threshold=1,
+                evaluation_periods=1,
+                alarm_description=f"Errors detected in {fn.function_name}",
+            )
+
+            cloudwatch.Alarm(
+                self,
+                f"{fn.node.id}DurationAlarm",
+                metric=fn.metric_duration(period=Duration.minutes(5)),
+                threshold=25000,
+                evaluation_periods=1,
+                alarm_description=f"High duration detected in {fn.function_name}",
+            )
+
+        CfnOutput(self, "ApiUrl", value=api.url)
+        CfnOutput(self, "DelegateRespondUrl", value=f"{api.url}delegate/respond")
+        CfnOutput(self, "VoiceSpeakUrl", value=f"{api.url}voice/speak")
+        CfnOutput(self, "RagIngestUrl", value=f"{api.url}rag/ingest")
+        CfnOutput(self, "SeedPersonaUrl", value=f"{api.url}seed/persona")
+        CfnOutput(self, "MeetingJoinUrl", value=f"{api.url}meeting/join")
+        CfnOutput(self, "AvatarSpeakUrl", value=f"{api.url}avatar/speak")
+        CfnOutput(self, "DocsBucketName", value=docs_bucket.bucket_name)
+        CfnOutput(self, "AuditBucketName", value=audit_bucket.bucket_name)
+        CfnOutput(self, "AudioBucketName", value=audio_bucket.bucket_name)
+        CfnOutput(self, "S3VectorBucketName", value=f"{construct_id}-vectors")
+        CfnOutput(self, "S3VectorIndexName", value="ai-delegate-rag")
+        CfnOutput(self, "PersonaTableName", value=persona_table.table_name)
+        CfnOutput(self, "StyleExamplesTableName", value=examples_table.table_name)
+        CfnOutput(self, "VoiceProfilesTableName", value=voice_table.table_name)
+        CfnOutput(self, "SsmParameterPrefix", value=ssm_parameter_prefix)
+        CfnOutput(self, "ElevenLabsApiKeyParameter", value=elevenlabs_api_key_param)
+        CfnOutput(self, "ElevenLabsVoiceIdParameter", value=elevenlabs_voice_id_param)
+        CfnOutput(self, "GuardrailId", value=guardrail.attr_guardrail_id)
+        CfnOutput(self, "GuardrailVersion", value="DRAFT")

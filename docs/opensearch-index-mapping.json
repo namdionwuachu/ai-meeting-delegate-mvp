@@ -1,0 +1,27 @@
+{
+  "settings": {
+    "index": {
+      "knn": true
+    }
+  },
+  "mappings": {
+    "properties": {
+      "persona_id": {"type": "keyword"},
+      "document_id": {"type": "keyword"},
+      "chunk_id": {"type": "keyword"},
+      "source": {"type": "keyword"},
+      "text": {"type": "text"},
+      "metadata": {"type": "object", "enabled": true},
+      "created_at": {"type": "date"},
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 1024,
+        "method": {
+          "name": "hnsw",
+          "space_type": "cosinesimil",
+          "engine": "nmslib"
+        }
+      }
+    }
+  }
+}

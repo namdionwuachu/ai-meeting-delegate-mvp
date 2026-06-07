@@ -1,0 +1,136 @@
+import json
+import os
+import traceback
+from datetime import datetime, timezone
+
+from persona.persona_loader import load_persona
+from persona.examples_loader import load_examples
+from persona.rag_retriever import retrieve_context
+from persona.response_generator import generate_delegate_response
+from policy.decision_rules import check_policy
+from policy.confidence import score_confidence
+from policy.output_guardrails import check_output
+from policy.escalation import escalate
+from voice.voice_router import synthesize_voice
+from audit.audit_writer import write_audit_record
+
+
+def _response(status_code: int, body: dict):
+    return {
+        "statusCode": status_code,
+        "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+        "body": json.dumps(body),
+    }
+
+
+def handler(event, context):
+    """Main API Lambda for POST /delegate/respond."""
+    try:
+        if event.get("httpMethod") == "GET":
+            return _response(200, {"status": "ok", "service": "ai-meeting-delegate"})
+
+        body = json.loads(event.get("body") or "{}") if "body" in event else event
+        transcript = body.get("transcript") or body.get("question")
+        persona_id = body.get("persona_id", "namdi")
+        meeting_id = body.get("meeting_id", "local-demo")
+        mode = body.get("mode", "text")
+
+        if not transcript:
+            return _response(400, {"error": "transcript or question is required"})
+
+        policy = check_policy(transcript, source="INPUT")
+        if policy["decision"] == "block":
+            answer = "I am not authorised to answer that on behalf of the human owner. I will escalate it for direct review."
+            escalation = escalate({
+                "meeting_id": meeting_id,
+                "persona_id": persona_id,
+                "transcript": transcript,
+                "policy": policy,
+                "answer": answer,
+            })
+            audit = write_audit_record({
+                "meeting_id": meeting_id,
+                "persona_id": persona_id,
+                "transcript": transcript,
+                "decision": "block",
+                "answer": answer,
+                "policy": policy,
+                "escalation": escalation,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            return _response(200, {"decision": "block", "text": answer, "policy": policy, "escalation": escalation, "audit": audit})
+
+        persona = load_persona(persona_id)
+        rag_context = retrieve_context(transcript, persona_id)
+        examples = load_examples(persona_id, policy.get("intent", "general"))
+
+        generation = generate_delegate_response(
+            question=transcript,
+            persona=persona,
+            rag_context=rag_context,
+            examples=examples,
+            policy=policy,
+        )
+        answer = generation["text"]
+
+        output_policy = check_output(answer, source="OUTPUT")
+        if output_policy["decision"] == "block":
+            answer = "I should not answer that directly. I will flag this for the human owner."
+            policy["output_guardrail"] = output_policy
+            policy["escalation_required"] = True
+
+        confidence = score_confidence(rag_context=rag_context, examples=examples, policy=policy)
+        decision = "speak" if confidence >= 0.7 and policy["decision"] == "allow" and output_policy["decision"] == "allow" else "cautious"
+        escalation = None
+        if policy.get("escalation_required") or decision == "cautious":
+            escalation = escalate({
+                "meeting_id": meeting_id,
+                "persona_id": persona_id,
+                "transcript": transcript,
+                "decision": decision,
+                "policy": policy,
+                "confidence": confidence,
+                "draft_answer": answer,
+            }, subject="AI Delegate review required")
+
+        audio_result = None
+        if mode in ["voice", "voice_only", "voice_avatar"]:
+            audio_result = synthesize_voice(
+                text=answer,
+                voice_profile_id=body.get("voice_profile_id") or os.environ.get("DEFAULT_VOICE_PROFILE_ID", "namdi-v1"),
+                meeting_id=meeting_id,
+                output_mode=body.get("output_mode", "file"),
+            )
+
+        audit = write_audit_record({
+            "meeting_id": meeting_id,
+            "persona_id": persona_id,
+            "transcript": transcript,
+            "decision": decision,
+            "answer": answer,
+            "confidence": confidence,
+            "policy": policy,
+            "rag_context": rag_context,
+            "examples": examples,
+            "audio": audio_result,
+            "generation": generation,
+            "output_policy": output_policy,
+            "escalation": escalation,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+        return _response(200, {
+            "decision": decision,
+            "text": answer,
+            "confidence": confidence,
+            "policy": policy,
+            "generation": generation,
+            "audio": audio_result,
+            "output_policy": output_policy,
+            "escalation": escalation,
+            "audit": audit,
+        })
+
+    except Exception as exc:
+        print(traceback.format_exc())
+        return _response(500, {"error": str(exc)})

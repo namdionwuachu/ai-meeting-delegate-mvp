@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Meeting Delegate Test UI</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <h1>AI Meeting Delegate</h1>
+      <p>Ask a question, get a persona-grounded answer, then play the cloned voice.</p>
+      <label>API Base URL</label>
+      <input id="apiBase" placeholder="https://abc.execute-api.eu-west-2.amazonaws.com/prod" />
+      <label>Question</label>
+      <textarea id="question" rows="5">Namdi, can we deliver the new platform in 3 weeks?</textarea>
+      <div class="row">
+        <button id="askBtn">Ask Delegate</button>
+        <button id="voiceBtn">Ask + Voice</button>
+      </div>
+      <pre id="output">Waiting...</pre>
+      <audio id="player" controls></audio>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
