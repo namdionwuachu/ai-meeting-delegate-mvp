@@ -117,6 +117,7 @@ class AIDelegateStack(Stack):
         elevenlabs_api_key_param = f"{ssm_parameter_prefix}/elevenlabs/api-key"
         elevenlabs_voice_id_param = f"{ssm_parameter_prefix}/elevenlabs/voice-id"
         recall_api_key_param = f"{ssm_parameter_prefix}/recall/api-key"
+        recall_api_base_url_param = f"{ssm_parameter_prefix}/recall/api-base-url"
         heygen_api_key_param = f"{ssm_parameter_prefix}/heygen/api-key"
         heygen_avatar_id_param = f"{ssm_parameter_prefix}/heygen/avatar-id"
         did_api_key_param = f"{ssm_parameter_prefix}/did/api-key"
@@ -218,6 +219,7 @@ class AIDelegateStack(Stack):
             "ELEVENLABS_API_KEY_PARAM": elevenlabs_api_key_param,
             "ELEVENLABS_VOICE_ID_PARAM": elevenlabs_voice_id_param,
             "RECALL_API_KEY_PARAM": recall_api_key_param,
+            "RECALL_API_BASE_URL_PARAM": recall_api_base_url_param,
             "HEYGEN_API_KEY_PARAM": heygen_api_key_param,
             "HEYGEN_AVATAR_ID_PARAM": heygen_avatar_id_param,
             "DID_API_KEY_PARAM": did_api_key_param,

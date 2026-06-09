@@ -22,7 +22,11 @@ def create_bot(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     api_key = get_env_or_parameter("RECALL_API_KEY", "RECALL_API_KEY_PARAM")
-    base_url = os.environ.get("RECALL_API_BASE_URL", "https://eu-central-1.recall.ai/api/v1")
+
+    base_url = get_env_or_parameter(
+    "RECALL_API_BASE_URL",
+    "RECALL_API_BASE_URL_PARAM"
+) or "https://eu-central-1.recall.ai/api/v1"
 
     if not api_key:
         return {
