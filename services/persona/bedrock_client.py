@@ -26,24 +26,42 @@ def _client(config):
         ),
     )
 
-
 def invoke_bedrock(prompt: str) -> dict[str, Any]:
-    """Invoke Claude messages API on Bedrock with token/cost guardrails.
+    """Invoke Bedrock model with token/cost guardrails.
 
-    Returns a structured payload containing answer text and usage metadata.
+    Supports Anthropic Claude and Amazon Nova Lite.
     """
     cfg = get_model_config()
     budget = check_token_budget(prompt, cfg.max_tokens)
     if not budget.allowed:
         raise BedrockInvocationError(f"Bedrock budget blocked request: {budget.reason}")
 
-    body = {
-        "anthropic_version": cfg.anthropic_version,
-        "max_tokens": cfg.max_tokens,
-        "temperature": cfg.temperature,
-        "top_p": cfg.top_p,
-        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
-    }
+    if cfg.model_id.startswith("amazon.nova"):
+        body = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"text": prompt}],
+                }
+            ],
+            "inferenceConfig": {
+                "maxTokens": cfg.max_tokens,
+                "temperature": cfg.temperature,
+            },
+        }
+    else:
+        body = {
+            "anthropic_version": cfg.anthropic_version,
+            "max_tokens": cfg.max_tokens,
+            "temperature": cfg.temperature,
+            "top_p": cfg.top_p,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": prompt}],
+                }
+            ],
+        }
 
     started = time.time()
     try:
@@ -55,8 +73,20 @@ def invoke_bedrock(prompt: str) -> dict[str, Any]:
         )
         latency_ms = int((time.time() - started) * 1000)
         payload = json.loads(response["body"].read())
-        text = "".join(part.get("text", "") for part in payload.get("content", []) if part.get("type") == "text")
-        usage = payload.get("usage", {})
+
+        if cfg.model_id.startswith("amazon.nova"):
+            output_message = payload.get("output", {}).get("message", {})
+            content = output_message.get("content", [])
+            text = "".join(part.get("text", "") for part in content)
+            usage = payload.get("usage", {})
+        else:
+            text = "".join(
+                part.get("text", "")
+                for part in payload.get("content", [])
+                if part.get("type") == "text"
+            )
+            usage = payload.get("usage", {})
+
         return {
             "text": text.strip(),
             "model_id": cfg.model_id,
@@ -66,3 +96,5 @@ def invoke_bedrock(prompt: str) -> dict[str, Any]:
         }
     except (ClientError, BotoCoreError, KeyError, json.JSONDecodeError) as exc:
         raise BedrockInvocationError(str(exc)) from exc
+
+
