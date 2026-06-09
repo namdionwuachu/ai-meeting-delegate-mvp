@@ -6,7 +6,6 @@ meeting delegate remains provider-agnostic.
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 from urllib import error, request
 
@@ -23,10 +22,15 @@ def create_bot(
 ) -> dict[str, Any]:
     api_key = get_env_or_parameter("RECALL_API_KEY", "RECALL_API_KEY_PARAM")
 
-    base_url = get_env_or_parameter(
-    "RECALL_API_BASE_URL",
-    "RECALL_API_BASE_URL_PARAM"
-) or "https://eu-central-1.recall.ai/api/v1"
+    base_url = (
+        get_env_or_parameter("RECALL_API_BASE_URL", "RECALL_API_BASE_URL_PARAM")
+        or "https://eu-central-1.recall.ai/api/v1"
+    )
+
+    realtime_url = get_env_or_parameter(
+        "MEETING_REALTIME_URL",
+        "MEETING_REALTIME_URL_PARAM",
+    )
 
     if not api_key:
         return {
@@ -35,21 +39,24 @@ def create_bot(
             "reason": "RECALL_API_KEY_not_configured",
         }
 
+    recording_config = {
+        "transcript": {"provider": {"meeting_captions": {}}},
+        "participant_events": {},
+    }
+
+    if realtime_url:
+        recording_config["realtime_endpoints"] = [
+            {
+                "type": "webhook",
+                "url": realtime_url,
+            }
+        ]
+
     payload = {
         "meeting_url": meeting_url,
         "bot_name": bot_name,
         "metadata": metadata or {},
-        "recording_config": {
-        "transcript": {"provider": {"meeting_captions": {}}},
-        "participant_events": {},
-        "realtime_endpoints": [
-            {
-                "type": "webhook",
-                "url": os.environ.get("MEETING_REALTIME_URL", ""),
-            }
-        ] if os.environ.get("MEETING_REALTIME_URL") else [],
-    },     
-        
+        "recording_config": recording_config,
     }
 
     url = f"{base_url.rstrip('/')}/bot/"
