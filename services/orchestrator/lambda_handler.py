@@ -82,7 +82,7 @@ def handler(event, context):
         confidence = score_confidence(rag_context=rag_context, examples=examples, policy=policy)
         decision = "speak" if confidence >= 0.7 and policy["decision"] == "allow" and output_policy["decision"] == "allow" else "cautious"
         escalation = None
-        if policy.get("escalation_required") or decision == "cautious":
+        if policy.get("escalation_required", False):
             escalation = escalate({
                 "meeting_id": meeting_id,
                 "persona_id": persona_id,
