@@ -264,17 +264,15 @@ class AIDelegateStack(Stack):
             handler="orchestrator.lambda_handler.handler",
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
-            memory_size=1024,
-            log_group=logs.LogGroup(
+            memory_size=512,
+            log_group=logs.LogGroup.from_log_group_name(
                 self,
                 "DelegateOrchestratorFunctionLogGroup",
-                log_group_name=f"/aws/lambda/{construct_id}-delegate-orchestrator",
-                retention=logs.RetentionDays.ONE_MONTH,
-                removal_policy=RemovalPolicy.DESTROY,
+                f"/aws/lambda/{construct_id}-delegate-orchestrator",
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
-        )
+            )
 
         voice_fn = _lambda.Function(
             self,
@@ -285,13 +283,10 @@ class AIDelegateStack(Stack):
             handler="voice.lambda_handler.handler",
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
-            memory_size=1024,
-            log_group=logs.LogGroup(
-                self,
-                "VoiceFunctionLogGroup",
-                log_group_name=f"/aws/lambda/{construct_id}-voice-service",
-                retention=logs.RetentionDays.ONE_MONTH,
-                removal_policy=RemovalPolicy.DESTROY,
+            memory_size=512,
+            log_group=logs.LogGroup.from_log_group_name(
+                self, "VoiceFunctionLogGroup",
+                f"/aws/lambda/{construct_id}-voice-service",
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
@@ -306,13 +301,10 @@ class AIDelegateStack(Stack):
             handler="rag.ingestion_handler.handler",
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(60),
-            memory_size=1024,
-            log_group=logs.LogGroup(
-                self,
-                "RagIngestionFunctionLogGroup",
-                log_group_name=f"/aws/lambda/{construct_id}-rag-ingestion",
-                retention=logs.RetentionDays.ONE_MONTH,
-                removal_policy=RemovalPolicy.DESTROY,
+            memory_size=512,
+            log_group=logs.LogGroup.from_log_group_name(
+                self, "RagIngestionFunctionLogGroup",
+                f"/aws/lambda/{construct_id}-rag-ingestion",
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
@@ -328,12 +320,9 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_group=logs.LogGroup(
-                self,
-                "SeedPersonaFunctionLogGroup",
-                log_group_name=f"/aws/lambda/{construct_id}-seed-persona",
-                retention=logs.RetentionDays.ONE_MONTH,
-                removal_policy=RemovalPolicy.DESTROY,
+            log_group=logs.LogGroup.from_log_group_name(
+                self, "SeedPersonaFunctionLogGroup",
+                f"/aws/lambda/{construct_id}-seed-persona",
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
@@ -349,12 +338,9 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_group=logs.LogGroup(
-                self,
-                "MeetingConnectorFunctionLogGroup",
-                log_group_name=f"/aws/lambda/{construct_id}-meeting-connector",
-                retention=logs.RetentionDays.ONE_MONTH,
-                removal_policy=RemovalPolicy.DESTROY,
+            log_group=logs.LogGroup.from_log_group_name(
+                self, "MeetingConnectorFunctionLogGroup",
+                f"/aws/lambda/{construct_id}-meeting-connector",
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
@@ -371,12 +357,9 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_group=logs.LogGroup(
-                self,
-                "MeetingRealtimeFunctionLogGroup",
-                log_group_name=f"/aws/lambda/{construct_id}-meeting-realtime",
-                retention=logs.RetentionDays.ONE_MONTH,
-                removal_policy=RemovalPolicy.DESTROY,
+            log_group=logs.LogGroup.from_log_group_name(
+                self, "MeetingRealtimeFunctionLogGroup",
+                f"/aws/lambda/{construct_id}-meeting-realtime",
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
@@ -392,12 +375,9 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_group=logs.LogGroup(
-                self,
-                "MeetingOutputMediaFunctionLogGroup",
-                log_group_name=f"/aws/lambda/{construct_id}-meeting-output-media",
-                retention=logs.RetentionDays.ONE_MONTH,
-                removal_policy=RemovalPolicy.DESTROY,
+            log_group=logs.LogGroup.from_log_group_name(
+                self, "MeetingOutputMediaFunctionLogGroup",
+                f"/aws/lambda/{construct_id}-meeting-output-media",
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
@@ -413,12 +393,9 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_group=logs.LogGroup(
-                self,
-                "AvatarFunctionLogGroup",
-                log_group_name=f"/aws/lambda/{construct_id}-avatar-service",
-                retention=logs.RetentionDays.ONE_MONTH,
-                removal_policy=RemovalPolicy.DESTROY,
+            log_group=logs.LogGroup.from_log_group_name(
+                self, "AvatarFunctionLogGroup",
+                f"/aws/lambda/{construct_id}-avatar-service",
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
