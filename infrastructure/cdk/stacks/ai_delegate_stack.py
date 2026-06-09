@@ -448,33 +448,78 @@ class AIDelegateStack(Stack):
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=["GET", "POST", "OPTIONS"],
-                allow_headers=["Content-Type", "Authorization", "X-Api-Key"],
+                allow_headers=["Content-Type", "Authorization", "X-Api-Key", "x-api-key"],
             ),
         )
 
+        api_key = api.add_api_key(
+            "AIDelegateApiKey",
+            api_key_name=f"{construct_id}-api-key",
+        )
+
+        usage_plan = api.add_usage_plan(
+            "AIDelegateUsagePlan",
+            name=f"{construct_id}-usage-plan",
+            throttle=apigw.ThrottleSettings(
+                rate_limit=10,
+                burst_limit=20,
+            ),
+            quota=apigw.QuotaSettings(
+                limit=1000,
+                period=apigw.Period.DAY,
+            ),
+        )
+
+        usage_plan.add_api_key(api_key)
+        usage_plan.add_api_stage(stage=api.deployment_stage)
+
         delegate = api.root.add_resource("delegate")
         respond = delegate.add_resource("respond")
-        respond.add_method("POST", apigw.LambdaIntegration(orchestrator_fn, proxy=True))
+        respond.add_method(
+            "POST",
+            apigw.LambdaIntegration(orchestrator_fn, proxy=True),
+            api_key_required=True,
+        )
 
         voice = api.root.add_resource("voice")
         speak = voice.add_resource("speak")
-        speak.add_method("POST", apigw.LambdaIntegration(voice_fn, proxy=True))
+        speak.add_method(
+            "POST",
+            apigw.LambdaIntegration(voice_fn, proxy=True),
+            api_key_required=True,
+        )
 
         rag = api.root.add_resource("rag")
         ingest = rag.add_resource("ingest")
-        ingest.add_method("POST", apigw.LambdaIntegration(rag_ingestion_fn, proxy=True))
+        ingest.add_method(
+            "POST",
+            apigw.LambdaIntegration(rag_ingestion_fn, proxy=True),
+            api_key_required=True,
+        )
 
         seed = api.root.add_resource("seed")
         seed_persona = seed.add_resource("persona")
-        seed_persona.add_method("POST", apigw.LambdaIntegration(seed_fn, proxy=True))
+        seed_persona.add_method(
+            "POST",
+            apigw.LambdaIntegration(seed_fn, proxy=True),
+            api_key_required=True,
+        )
 
         meeting = api.root.add_resource("meeting")
         join = meeting.add_resource("join")
-        join.add_method("POST", apigw.LambdaIntegration(meeting_fn, proxy=True))
+        join.add_method(
+            "POST",
+            apigw.LambdaIntegration(meeting_fn, proxy=True),
+            api_key_required=True,
+        )
 
         avatar = api.root.add_resource("avatar")
         speak_avatar = avatar.add_resource("speak")
-        speak_avatar.add_method("POST", apigw.LambdaIntegration(avatar_fn, proxy=True))
+        speak_avatar.add_method(
+            "POST",
+            apigw.LambdaIntegration(avatar_fn, proxy=True),
+            api_key_required=True,
+        )
 
         health = api.root.add_resource("health")
         health.add_method("GET", apigw.LambdaIntegration(orchestrator_fn, proxy=True))

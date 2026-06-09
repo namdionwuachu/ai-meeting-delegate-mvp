@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from urllib import request, error
 
@@ -78,6 +79,10 @@ def synthesize_with_elevenlabs(text: str, voice_profile_id: str, meeting_id: str
     which keeps API Gateway simple while exercising the low-latency ElevenLabs path.
     For a real meeting bridge, replace the S3 write loop with direct chunk forwarding to WebRTC.
     """
+    
+    # Improve speech pacing by adding short pauses after sentence endings.
+    text = re.sub(r'([.!?])\s+', r'\1\n\n', text)
+    
     profile = _get_voice_profile(voice_profile_id)
     voice_id = profile.get("voice_id")
     if not voice_id or voice_id == "REPLACE_WITH_ELEVENLABS_VOICE_ID":
