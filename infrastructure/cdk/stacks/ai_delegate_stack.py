@@ -216,6 +216,7 @@ class AIDelegateStack(Stack):
             "DOCS_BUCKET": docs_bucket.bucket_name,
             "AUDIT_BUCKET": audit_bucket.bucket_name,
             "AUDIO_BUCKET": audio_bucket.bucket_name,
+            "MEETING_REALTIME_URL_PARAM": f"{ssm_parameter_prefix}/meeting/realtime-url",
             "ELEVENLABS_API_KEY_PARAM": elevenlabs_api_key_param,
             "ELEVENLABS_VOICE_ID_PARAM": elevenlabs_voice_id_param,
             "RECALL_API_KEY_PARAM": recall_api_key_param,
@@ -264,7 +265,13 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=1024,
-            log_retention=logs.RetentionDays.ONE_MONTH,
+            log_group=logs.LogGroup(
+                self,
+                "DelegateOrchestratorFunctionLogGroup",
+                log_group_name=f"/aws/lambda/{construct_id}-delegate-orchestrator",
+                retention=logs.RetentionDays.ONE_MONTH,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
@@ -279,7 +286,13 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=1024,
-            log_retention=logs.RetentionDays.ONE_MONTH,
+            log_group=logs.LogGroup(
+                self,
+                "VoiceFunctionLogGroup",
+                log_group_name=f"/aws/lambda/{construct_id}-voice-service",
+                retention=logs.RetentionDays.ONE_MONTH,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
@@ -294,7 +307,13 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(60),
             memory_size=1024,
-            log_retention=logs.RetentionDays.ONE_MONTH,
+            log_group=logs.LogGroup(
+                self,
+                "RagIngestionFunctionLogGroup",
+                log_group_name=f"/aws/lambda/{construct_id}-rag-ingestion",
+                retention=logs.RetentionDays.ONE_MONTH,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
@@ -309,7 +328,13 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_retention=logs.RetentionDays.ONE_MONTH,
+            log_group=logs.LogGroup(
+                self,
+                "SeedPersonaFunctionLogGroup",
+                log_group_name=f"/aws/lambda/{construct_id}-seed-persona",
+                retention=logs.RetentionDays.ONE_MONTH,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
@@ -324,7 +349,13 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_retention=logs.RetentionDays.ONE_MONTH,
+            log_group=logs.LogGroup(
+                self,
+                "MeetingConnectorFunctionLogGroup",
+                log_group_name=f"/aws/lambda/{construct_id}-meeting-connector",
+                retention=logs.RetentionDays.ONE_MONTH,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
@@ -340,7 +371,13 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_retention=logs.RetentionDays.ONE_MONTH,
+            log_group=logs.LogGroup(
+                self,
+                "MeetingRealtimeFunctionLogGroup",
+                log_group_name=f"/aws/lambda/{construct_id}-meeting-realtime",
+                retention=logs.RetentionDays.ONE_MONTH,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
@@ -355,7 +392,13 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_retention=logs.RetentionDays.ONE_MONTH,
+            log_group=logs.LogGroup(
+                self,
+                "MeetingOutputMediaFunctionLogGroup",
+                log_group_name=f"/aws/lambda/{construct_id}-meeting-output-media",
+                retention=logs.RetentionDays.ONE_MONTH,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
@@ -370,7 +413,13 @@ class AIDelegateStack(Stack):
             code=_lambda.Code.from_asset(service_code_path),
             timeout=Duration.seconds(30),
             memory_size=512,
-            log_retention=logs.RetentionDays.ONE_MONTH,
+            log_group=logs.LogGroup(
+                self,
+                "AvatarFunctionLogGroup",
+                log_group_name=f"/aws/lambda/{construct_id}-avatar-service",
+                retention=logs.RetentionDays.ONE_MONTH,
+                removal_policy=RemovalPolicy.DESTROY,
+            ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
@@ -556,15 +605,7 @@ class AIDelegateStack(Stack):
             api_key_required=False,
         )
         
-        meeting_realtime_url = (
-            f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/"
-            f"{api.deployment_stage.stage_name}/meeting/realtime"
-        )
-        
-        meeting_fn.add_environment(
-            "MEETING_REALTIME_URL",
-            meeting_realtime_url,
-        )
+     
         
         output_media = meeting.add_resource("output-media")
         output_media_start = output_media.add_resource("start")
@@ -606,7 +647,7 @@ class AIDelegateStack(Stack):
 
         CfnOutput(self, "ApiUrl", value=api.url)
         CfnOutput(self, "DelegateRespondUrl", value=f"{api.url}delegate/respond")
-        CfnOutput(self, "MeetingRealtimeUrl", value=meeting_realtime_url)
+        CfnOutput(self, "MeetingRealtimeUrl", value=f"{api.url}meeting/realtime")  # ✅
         CfnOutput(self, "VoiceSpeakUrl", value=f"{api.url}voice/speak")
         CfnOutput(self, "RagIngestUrl", value=f"{api.url}rag/ingest")
         CfnOutput(self, "SeedPersonaUrl", value=f"{api.url}seed/persona")
