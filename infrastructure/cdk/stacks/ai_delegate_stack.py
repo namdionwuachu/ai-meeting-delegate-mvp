@@ -224,7 +224,7 @@ class AIDelegateStack(Stack):
             "BEDROCK_GUARDRAIL_ID": guardrail.attr_guardrail_id,
             "BEDROCK_GUARDRAIL_VERSION": "DRAFT",
             "ESCALATION_TOPIC_ARN": escalation_topic.topic_arn,
-            "BEDROCK_MODEL_ID": "anthropic.claude-3-haiku-20240307-v1:0",
+            "BEDROCK_MODEL_ID": "anthropic.claude-3-5-haiku-20241022-v1:0",
             "BEDROCK_MAX_TOKENS": "450",
             "BEDROCK_TEMPERATURE": "0.3",
             "BEDROCK_TOP_P": "0.9",
