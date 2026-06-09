@@ -35,8 +35,10 @@ def _get_voice_profile(voice_profile_id: str) -> dict:
         "provider": "elevenlabs",
         "voice_id": _get_default_voice_id() or "REPLACE_WITH_ELEVENLABS_VOICE_ID",
         "model_id": os.environ.get("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5"),
-        "stability": "0.75",
-        "similarity_boost": "0.85",
+        "stability": "0.85",
+        "similarity_boost": "0.90",
+        "style": "0.0",
+        "use_speaker_boost": True,
     }
 
 
@@ -50,8 +52,10 @@ def _build_request(text: str, voice_id: str, profile: dict, streaming: bool) -> 
         "text": text,
         "model_id": profile.get("model_id") or os.environ.get("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5"),
         "voice_settings": {
-            "stability": float(profile.get("stability", 0.75)),
-            "similarity_boost": float(profile.get("similarity_boost", 0.85)),
+            "stability": float(profile.get("stability", 0.85)),
+            "similarity_boost": float(profile.get("similarity_boost", 0.90)),
+            "style": float(profile.get("style", 0.0)),
+            "use_speaker_boost": bool(profile.get("use_speaker_boost", True)),
         },
     }).encode("utf-8")
     return request.Request(
