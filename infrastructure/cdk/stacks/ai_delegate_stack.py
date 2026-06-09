@@ -224,7 +224,7 @@ class AIDelegateStack(Stack):
             "BEDROCK_GUARDRAIL_ID": guardrail.attr_guardrail_id,
             "BEDROCK_GUARDRAIL_VERSION": "DRAFT",
             "ESCALATION_TOPIC_ARN": escalation_topic.topic_arn,
-            "BEDROCK_MODEL_ID": "anthropic.claude-3-5-haiku-20241022-v1:0",
+            "BEDROCK_MODEL_ID": "amazon.nova-lite-v1:0",
             "BEDROCK_MAX_TOKENS": "450",
             "BEDROCK_TEMPERATURE": "0.3",
             "BEDROCK_TOP_P": "0.9",
@@ -508,7 +508,7 @@ class AIDelegateStack(Stack):
         CfnOutput(self, "DocsBucketName", value=docs_bucket.bucket_name)
         CfnOutput(self, "AuditBucketName", value=audit_bucket.bucket_name)
         CfnOutput(self, "AudioBucketName", value=audio_bucket.bucket_name)
-        CfnOutput(self, "S3VectorBucketName", value=f"{construct_id}-vectors")
+        CfnOutput(self, "S3VectorBucketName", value=f"{construct_id.lower()}-vectors")
         CfnOutput(self, "S3VectorIndexName", value="ai-delegate-rag")
         CfnOutput(self, "PersonaTableName", value=persona_table.table_name)
         CfnOutput(self, "StyleExamplesTableName", value=examples_table.table_name)
