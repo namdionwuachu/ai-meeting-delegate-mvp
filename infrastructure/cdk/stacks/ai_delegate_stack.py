@@ -487,12 +487,6 @@ class AIDelegateStack(Stack):
             ),
         )
         
-        meeting_realtime_url = f"{api.url}meeting/realtime"
-
-        meeting_fn.add_environment(
-            "MEETING_REALTIME_URL",
-            meeting_realtime_url,
-        )
 
         api_key = api.add_api_key(
             "AIDelegateApiKey",
@@ -560,6 +554,16 @@ class AIDelegateStack(Stack):
             "POST",
             apigw.LambdaIntegration(meeting_realtime_fn, proxy=True),
             api_key_required=False,
+        )
+        
+        meeting_realtime_url = (
+            f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/"
+            f"{api.deployment_stage.stage_name}/meeting/realtime"
+        )
+        
+        meeting_fn.add_environment(
+            "MEETING_REALTIME_URL",
+            meeting_realtime_url,
         )
         
         output_media = meeting.add_resource("output-media")
