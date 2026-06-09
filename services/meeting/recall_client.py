@@ -40,9 +40,16 @@ def create_bot(
         "bot_name": bot_name,
         "metadata": metadata or {},
         "recording_config": {
-            "transcript": {"provider": {"meeting_captions": {}}},
-            "participant_events": {},
-        },
+        "transcript": {"provider": {"meeting_captions": {}}},
+        "participant_events": {},
+        "realtime_endpoints": [
+            {
+                "type": "webhook",
+                "url": os.environ.get("MEETING_REALTIME_URL", ""),
+            }
+        ] if os.environ.get("MEETING_REALTIME_URL") else [],
+    },     
+        
     }
 
     url = f"{base_url.rstrip('/')}/bot/"

@@ -328,6 +328,37 @@ class AIDelegateStack(Stack):
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
+        
+        
+        meeting_realtime_fn = _lambda.Function(
+            self,
+            "MeetingRealtimeFunction",
+            function_name=f"{construct_id}-meeting-realtime",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="meeting.realtime_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(30),
+            memory_size=512,
+            log_retention=logs.RetentionDays.ONE_MONTH,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
+        
+        output_media_fn = _lambda.Function(
+            self,
+            "MeetingOutputMediaFunction",
+            function_name=f"{construct_id}-meeting-output-media",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="meeting.output_media_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(30),
+            memory_size=512,
+            log_retention=logs.RetentionDays.ONE_MONTH,
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
 
         avatar_fn = _lambda.Function(
             self,
@@ -350,6 +381,8 @@ class AIDelegateStack(Stack):
             rag_ingestion_fn,
             seed_fn,
             meeting_fn,
+            meeting_realtime_fn,   # <-- add this
+            output_media_fn,
             avatar_fn,
         ]
 
@@ -512,6 +545,21 @@ class AIDelegateStack(Stack):
         join.add_method(
             "POST",
             apigw.LambdaIntegration(meeting_fn, proxy=True),
+            api_key_required=True,
+        )
+        
+        realtime = meeting.add_resource("realtime")
+        realtime.add_method(
+            "POST",
+            apigw.LambdaIntegration(meeting_realtime_fn, proxy=True),
+            api_key_required=False,
+        )
+        
+        output_media = meeting.add_resource("output-media")
+        output_media_start = output_media.add_resource("start")
+        output_media_start.add_method(
+            "POST",
+            apigw.LambdaIntegration(output_media_fn, proxy=True),
             api_key_required=True,
         )
 

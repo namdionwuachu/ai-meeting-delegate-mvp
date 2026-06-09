@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Namdi AI Delegate Output Media</title>
+  <style>
+    body {
+      margin: 0;
+      background: #07111f;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .card {
+      text-align: center;
+      max-width: 800px;
+      padding: 40px;
+    }
+
+    .avatar {
+      width: 140px;
+      height: 140px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #2f80ed, #00d4ff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 52px;
+      font-weight: bold;
+      margin: 0 auto 24px;
+      box-shadow: 0 0 50px rgba(0, 212, 255, 0.4);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 38px;
+    }
+
+    p {
+      font-size: 20px;
+      opacity: 0.85;
+      line-height: 1.5;
+    }
+
+    .status {
+      margin-top: 24px;
+      font-size: 16px;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="avatar">N</div>
+    <h1>Namdi AI Delegate</h1>
+    <p id="message">Listening for meeting context...</p>
+    <div class="status" id="status">Output media ready</div>
+
+    <audio id="audioPlayer" crossorigin="anonymous"></audio>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const audioUrl = params.get("audio_url");
+    const message = params.get("message");
+
+    const messageEl = document.getElementById("message");
+    const statusEl = document.getElementById("status");
+    const audioPlayer = document.getElementById("audioPlayer");
+
+    if (message) {
+      messageEl.textContent = message;
+    }
+
+    async function playAudio(url) {
+      try {
+        statusEl.textContent = "Preparing audio response...";
+        audioPlayer.src = url;
+        audioPlayer.autoplay = true;
+        audioPlayer.controls = false;
+
+        await audioPlayer.play();
+        statusEl.textContent = "Speaking...";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Audio playback blocked or unavailable";
+      }
+    }
+
+    if (audioUrl) {
+      playAudio(audioUrl);
+    }
+  </script>
+</body>
+</html>
