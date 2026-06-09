@@ -5,10 +5,10 @@ meeting delegate remains provider-agnostic.
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
-
-import requests
+from urllib import error, request
 
 try:
     from shared_ssm import get_env_or_parameter
@@ -16,27 +16,67 @@ except Exception:  # pragma: no cover
     from services.shared_ssm import get_env_or_parameter
 
 
-def create_bot(meeting_url: str, bot_name: str = "Namdi [AI Delegate]", metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+def create_bot(
+    meeting_url: str,
+    bot_name: str = "Namdi [AI Delegate]",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     api_key = get_env_or_parameter("RECALL_API_KEY", "RECALL_API_KEY_PARAM")
-    base_url = os.environ.get("RECALL_API_BASE_URL", "https://us-west-2.recall.ai/api/v1")
+    base_url = os.environ.get("RECALL_API_BASE_URL", "https://eu-central-1.recall.ai/api/v1")
+
     if not api_key:
-        return {"provider": "recall", "created": False, "reason": "RECALL_API_KEY_not_configured"}
+        return {
+            "provider": "recall",
+            "created": False,
+            "reason": "RECALL_API_KEY_not_configured",
+        }
 
     payload = {
         "meeting_url": meeting_url,
         "bot_name": bot_name,
         "metadata": metadata or {},
-        # Provider-specific fields should be verified against your Recall region/docs.
         "recording_config": {
             "transcript": {"provider": {"meeting_captions": {}}},
             "participant_events": {},
         },
     }
-    resp = requests.post(
-        f"{base_url.rstrip('/')}/bot/",
-        headers={"Authorization": f"Token {api_key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=20,
+
+    url = f"{base_url.rstrip('/')}/bot/"
+
+    req = request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Authorization": f"Token {api_key}",
+            "Content-Type": "application/json",
+        },
     )
-    resp.raise_for_status()
-    return {"provider": "recall", "created": True, "response": resp.json()}
+
+    try:
+        with request.urlopen(req, timeout=20) as resp:
+            body = resp.read().decode("utf-8")
+            return {
+                "provider": "recall",
+                "created": True,
+                "status_code": resp.status,
+                "response": json.loads(body) if body else {},
+            }
+
+    except error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="ignore")
+        return {
+            "provider": "recall",
+            "created": False,
+            "status_code": exc.code,
+            "reason": "recall_http_error",
+            "body": body,
+        }
+
+    except Exception as exc:
+        return {
+            "provider": "recall",
+            "created": False,
+            "reason": "recall_request_failed",
+            "error": str(exc),
+        }
