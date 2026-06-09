@@ -237,7 +237,7 @@ class AIDelegateStack(Stack):
             "DEFAULT_VOICE_PROFILE_ID": "namdi-v1",
             "LOG_LEVEL": "INFO",
             "VECTOR_BACKEND": "s3_vectors",
-            "S3_VECTOR_BUCKET_NAME": f"{construct_id}-vectors",
+            "S3_VECTOR_BUCKET_NAME": f"{construct_id.lower()}-vectors",
             "S3_VECTOR_INDEX_NAME": "ai-delegate-rag",
             "S3_VECTORS_BATCH_SIZE": "50",
             "RAG_INDEX_PREFIX": "rag-index",
