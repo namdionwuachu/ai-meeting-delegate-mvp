@@ -486,6 +486,13 @@ class AIDelegateStack(Stack):
                 allow_headers=["Content-Type", "Authorization", "X-Api-Key", "x-api-key"],
             ),
         )
+        
+        meeting_realtime_url = f"{api.url}meeting/realtime"
+
+        meeting_fn.add_environment(
+            "MEETING_REALTIME_URL",
+            meeting_realtime_url,
+        )
 
         api_key = api.add_api_key(
             "AIDelegateApiKey",
@@ -595,6 +602,7 @@ class AIDelegateStack(Stack):
 
         CfnOutput(self, "ApiUrl", value=api.url)
         CfnOutput(self, "DelegateRespondUrl", value=f"{api.url}delegate/respond")
+        CfnOutput(self, "MeetingRealtimeUrl", value=meeting_realtime_url)
         CfnOutput(self, "VoiceSpeakUrl", value=f"{api.url}voice/speak")
         CfnOutput(self, "RagIngestUrl", value=f"{api.url}rag/ingest")
         CfnOutput(self, "SeedPersonaUrl", value=f"{api.url}seed/persona")
