@@ -6,6 +6,8 @@ import json
 import logging
 from typing import Any
 
+import boto3
+
 from .turn_taking import should_respond
 
 
