@@ -18,6 +18,7 @@ from aws_cdk import (
 from constructs import Construct
 
 
+
 class AIDelegateStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
@@ -282,7 +283,17 @@ class AIDelegateStack(Stack):
             runtime=_lambda.Runtime.PYTHON_3_12,
             architecture=_lambda.Architecture.ARM_64,
             handler="orchestrator.lambda_handler.handler",
-            code=_lambda.Code.from_asset(service_code_path),
+            code=_lambda.Code.from_asset(
+                service_code_path,
+                bundling=_lambda.BundlingOptions(
+                    image=_lambda.Runtime.PYTHON_3_12.bundling_image,
+                    command=[
+                        "bash",
+                        "-c",
+                        "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output"
+                    ],
+                ),
+            ),
             timeout=Duration.seconds(30),
             memory_size=512,
             log_group=logs.LogGroup.from_log_group_name(
