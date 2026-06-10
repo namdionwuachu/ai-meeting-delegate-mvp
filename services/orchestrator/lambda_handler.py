@@ -110,11 +110,18 @@ def handler(event, context):
                         if session_result.get("started"):
                             # short URL — no JWT in query string
                             avatar_api_url = os.environ.get("AVATAR_TOKEN_API_URL", "")
+                            table.put_item(Item={
+                                "meeting_id": bot_id,
+                                "event_ts": "avatar_config",
+                                "audio_url": audio_url,
+                                "message": answer[:180],
+                                "session_token": session["session_token"],
+                                "ttl": int(time.time()) + 300,
+                            })
+
                             avatar_url = (
                                 f"{avatar_base_url}/avatar.html"
                                 f"?bot_id={bot_id}"
-                                f"&audio_url={encoded_audio}"
-                                f"&message={encoded_message}"
                                 f"&token_url={quote(avatar_api_url, safe='')}"
                             )
                             print(f"[REALTIME] avatar_url_length={len(avatar_url)} avatar_url={avatar_url[:200]!r}")
@@ -125,10 +132,10 @@ def handler(event, context):
                             print(f"[REALTIME] liveavatar avatar_result={avatar_result}")
                             liveavatar_ok = True
 
-                            audio_duration = (audio_result or {}).get("duration_seconds", 10)
-                            time.sleep(audio_duration + 2)
-                            stop_result = stop_session(session["session_token"])
-                            print(f"[REALTIME] liveavatar stop_result={stop_result}")
+                            #audio_duration = (audio_result or {}).get("duration_seconds", 10)
+                            #time.sleep(audio_duration + 2)
+                            #stop_result = stop_session(session["session_token"])
+                            #print(f"[REALTIME] liveavatar stop_result={stop_result}")
                         else:
                             raise Exception(f"LiveAvatar start failed: {session_result}")
                     else:
