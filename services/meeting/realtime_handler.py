@@ -51,6 +51,8 @@ def _extract_text(payload: dict[str, Any]) -> str:
         payload.get("data", {}).get("transcript") if isinstance(payload.get("data"), dict) else None,
         payload.get("event", {}).get("text") if isinstance(payload.get("event"), dict) else None,
     ]
+    
+    
 
     for value in candidates:
         if isinstance(value, str) and value.strip():
@@ -89,6 +91,17 @@ def handler(event, context):
             }
         )
     )
+    
+    # Ignore the bot's own speech to prevent feedback loops
+    participant_name = (
+        (body.get("data") or {})
+        .get("data", {})
+        .get("participant", {})
+        .get("name", "")
+        .lower()
+    )
+    if "ai delegate" in participant_name or "namdi ai" in participant_name:
+        return _response(200, {"received": True, "skipped": "bot_own_speech"})
     
     if turn_decision.get("respond") and transcript_text:
         bot_id = (
