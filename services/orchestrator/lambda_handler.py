@@ -141,8 +141,10 @@ def handler(event, context):
                     avatar_url = (
                         f"{avatar_base_url}/avatar.html"
                         f"?audio_url={encoded_audio}"
-                        f"&message={encoded_message}"
+                        f"&message={encoded_message}"            
                     )
+                    print(f"[REALTIME] avatar_url={avatar_url!r}")
+                    
                     avatar_result = start_output_media(
                         bot_id=bot_id,
                         webpage_url=avatar_url,
