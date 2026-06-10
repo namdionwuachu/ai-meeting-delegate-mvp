@@ -67,7 +67,12 @@ def handler(event, context):
                 output_mode="file",
             )
 
-            audio_url = (audio_result or {}).get("url") or (audio_result or {}).get("presigned_url")
+            
+            audio_url = (
+                (audio_result or {}).get("audio_url")
+                or (audio_result or {}).get("url")
+                or (audio_result or {}).get("presigned_url")
+            )
             print(f"[REALTIME] audio_result={audio_result} audio_url={audio_url!r}")
             if audio_url and bot_id:
                 result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
