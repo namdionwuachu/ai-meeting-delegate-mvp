@@ -12,7 +12,7 @@ DEFAULT_SILENCE_GAP_MS = 800
 
 def is_addressed_to_delegate(transcript: str, owner_names: list[str] | None = None) -> bool:
     text = transcript or ""
-    names = owner_names or ["namdi", "delegate", "ai delegate", "assistant"]
+    names = owner_names or ["namdi", "assistant"]
     return any(re.search(rf"\b{name}\b", text, re.I) for name in names)
 
 
