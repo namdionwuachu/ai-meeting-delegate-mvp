@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aws_cdk import (
+    BundlingOptions,
     CfnOutput,
     Duration,
     RemovalPolicy,
@@ -285,7 +286,7 @@ class AIDelegateStack(Stack):
             handler="orchestrator.lambda_handler.handler",
             code=_lambda.Code.from_asset(
                 service_code_path,
-                bundling=_lambda.BundlingOptions(
+                bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_12.bundling_image,
                     command=[
                         "bash",
