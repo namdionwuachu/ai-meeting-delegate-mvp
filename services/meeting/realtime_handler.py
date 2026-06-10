@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 import boto3
@@ -89,7 +90,7 @@ def handler(event, context):
         )
     )
     
-    if turn_decision.get("should_respond") and transcript_text:
+    if turn_decision.get("respond") and transcript_text:
         bot_id = body.get("bot_id") or (body.get("data") or {}).get("bot_id")
 
         lambda_client.invoke(
