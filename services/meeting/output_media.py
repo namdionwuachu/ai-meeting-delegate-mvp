@@ -100,21 +100,28 @@ def start_output_media(
             "reason": "recall_output_media_failed",
             "error": str(exc),
         }
-        
-
 def start_audio_output(
     bot_id: str,
     audio_url: str,
 ) -> dict[str, Any]:
+
+    import base64
 
     api_key, base_url = _recall_config()
 
     if not api_key:
         return {"started": False, "reason": "RECALL_API_KEY_not_configured"}
 
+    try:
+        with request.urlopen(audio_url, timeout=15) as resp:
+            audio_bytes = resp.read()
+        b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
+    except Exception as exc:
+        return {"started": False, "reason": "audio_fetch_failed", "error": str(exc)}
+
     payload = {
-        "kind": "audio",
-        "audio_url": audio_url,
+        "kind": "mp3",
+        "b64_data": b64_audio,
     }
 
     req = request.Request(
@@ -129,7 +136,7 @@ def start_audio_output(
     )
 
     try:
-        with request.urlopen(req, timeout=20) as resp:
+        with request.urlopen(req, timeout=30) as resp:
             body = resp.read().decode("utf-8")
             return {
                 "started": True,
