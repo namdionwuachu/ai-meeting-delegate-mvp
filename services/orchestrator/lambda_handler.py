@@ -120,7 +120,7 @@ def handler(event, context):
                             })
 
                             avatar_url = (
-                                f"{avatar_base_url}/avatar.html"
+                                f"{avatar_base_url}/live/index.html"
                                 f"?bot_id={bot_id}"
                                 f"&token_url={quote(avatar_api_url, safe='')}"
                             )
