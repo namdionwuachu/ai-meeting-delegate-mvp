@@ -33,8 +33,11 @@ def handler(event, context):
             bot_id = event.get("bot_id")
             meeting_id = event.get("meeting_id", "realtime-session")
             persona_id = "namdi"
+            
+            print(f"[REALTIME] transcript={transcript!r} bot_id={bot_id!r}")
 
             if not transcript or not bot_id:
+                print(f"[REALTIME] Early return — missing transcript or bot_id")
                 return
 
             policy = check_policy(transcript, source="INPUT")
@@ -65,9 +68,10 @@ def handler(event, context):
             )
 
             audio_url = (audio_result or {}).get("url") or (audio_result or {}).get("presigned_url")
+            print(f"[REALTIME] audio_result={audio_result} audio_url={audio_url!r}")
             if audio_url and bot_id:
-                start_audio_output(bot_id=bot_id, audio_url=audio_url)
-
+                result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
+                print(f"[REALTIME] start_audio_output result={result}")
             return
 
         # ── Existing HTTP API flow below ──
