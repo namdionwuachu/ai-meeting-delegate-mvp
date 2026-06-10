@@ -92,18 +92,14 @@ def handler(event, context):
         )
     )
     
-    # Ignore the bot's own speech to prevent feedback loops
-       
-    if any(phrase in transcript_text.lower() for phrase in [
-        "i'm an ai delegate",
-        "i am an ai delegate",
-        "as an ai delegate",
-        "acting on behalf of namdi",
-        "on behalf of namdi",
-        "namdi's director approval",
-        "namdi's direct input",
-        "escalate to namdi",
-    ]):
+   # Ignore the bot's own speech to prevent feedback loops
+    participant_id = (
+        (body.get("data") or {})
+        .get("data", {})
+        .get("participant", {})
+        .get("id")
+    )
+    if participant_id == 0:
         return _response(200, {"received": True, "skipped": "bot_own_speech"})
     
     if turn_decision.get("respond") and transcript_text:
