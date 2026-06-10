@@ -110,7 +110,24 @@ class AIDelegateStack(Stack):
                     prefix="audio/",
                     expiration=Duration.days(30),
                 )
-            ],
+            ], 
+        )
+            
+        avatar_static_bucket = s3.Bucket(
+            self,
+            "AvatarStaticBucket",
+            bucket_name=f"{construct_id.lower()}-avatar-static",
+            website_index_document="avatar.html",
+            public_read_access=True,
+            block_public_access=s3.BlockPublicAccess(
+                block_public_acls=False,
+                block_public_policy=False,
+                ignore_public_acls=False,
+                restrict_public_buckets=False,
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+        
         )
 
         ssm_parameter_prefix = f"/{construct_id}"
@@ -215,6 +232,8 @@ class AIDelegateStack(Stack):
             "SESSIONS_TABLE": sessions_table.table_name,
             "DOCS_BUCKET": docs_bucket.bucket_name,
             "ORCHESTRATOR_FUNCTION_NAME": f"{construct_id}-delegate-orchestrator",
+            "AVATAR_STATIC_BUCKET": avatar_static_bucket.bucket_name,
+            "AVATAR_STATIC_URL": f"http://{avatar_static_bucket.bucket_website_domain_name}",
             "AUDIT_BUCKET": audit_bucket.bucket_name,
             "AUDIO_BUCKET": audio_bucket.bucket_name,
             "MEETING_REALTIME_URL_PARAM": f"{ssm_parameter_prefix}/meeting/realtime-url",
@@ -651,3 +670,5 @@ class AIDelegateStack(Stack):
         CfnOutput(self, "ElevenLabsVoiceIdParameter", value=elevenlabs_voice_id_param)
         CfnOutput(self, "GuardrailId", value=guardrail.attr_guardrail_id)
         CfnOutput(self, "GuardrailVersion", value="DRAFT")
+        CfnOutput(self, "AvatarStaticUrl", value=f"http://{avatar_static_bucket.bucket_website_domain_name}")
+        CfnOutput(self, "AvatarStaticBucketName", value=avatar_static_bucket.bucket_name)

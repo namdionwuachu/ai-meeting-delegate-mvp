@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Namdi AI Delegate</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Syne:wght@700;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #07111f;
+      --surface: #0d1e33;
+      --accent: #00c8ff;
+      --accent2: #2f80ed;
+      --text: #f0f4f8;
+      --muted: rgba(240,244,248,0.55);
+      --pulse-color: rgba(0, 200, 255, 0.35);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .card {
+      text-align: center;
+      padding: 48px 56px;
+      background: var(--surface);
+      border: 1px solid rgba(0,200,255,0.12);
+      border-radius: 24px;
+      max-width: 520px;
+      width: 90vw;
+      position: relative;
+    }
+
+    /* Avatar ring */
+    .avatar-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      margin: 0 auto 28px;
+    }
+
+    .avatar-ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      background: linear-gradient(135deg, var(--accent2), var(--accent)) border-box;
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: destination-out;
+      mask-composite: exclude;
+      opacity: 0.6;
+      transition: opacity 0.4s;
+    }
+
+    .avatar-ring.speaking {
+      opacity: 1;
+      animation: ring-pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes ring-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 var(--pulse-color); }
+      50% { box-shadow: 0 0 0 14px transparent; }
+    }
+
+    .avatar {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', sans-serif;
+      font-size: 54px;
+      font-weight: 800;
+      color: var(--bg);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Sound bars */
+    .bars {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 4px;
+      height: 24px;
+      margin: 0 auto 20px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .bars.active { opacity: 1; }
+
+    .bar {
+      width: 4px;
+      border-radius: 2px;
+      background: var(--accent);
+      animation: none;
+    }
+
+    .bars.active .bar:nth-child(1) { animation: bar 0.9s ease-in-out -0.4s infinite; }
+    .bars.active .bar:nth-child(2) { animation: bar 0.9s ease-in-out -0.2s infinite; }
+    .bars.active .bar:nth-child(3) { animation: bar 0.9s ease-in-out 0s infinite; }
+    .bars.active .bar:nth-child(4) { animation: bar 0.9s ease-in-out -0.3s infinite; }
+    .bars.active .bar:nth-child(5) { animation: bar 0.9s ease-in-out -0.1s infinite; }
+
+    @keyframes bar {
+      0%, 100% { height: 4px; }
+      50% { height: 22px; }
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .role {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .company {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(0,200,255,0.1);
+      margin: 0 0 20px;
+    }
+
+    .message {
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--text);
+      min-height: 48px;
+      transition: opacity 0.3s;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+
+    .dot.live {
+      background: var(--accent);
+      animation: dot-blink 1.4s ease-in-out infinite;
+    }
+
+    @keyframes dot-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .status-text {
+      font-size: 13px;
+      color: var(--muted);
+      transition: color 0.3s;
+    }
+
+    .status-text.live { color: var(--accent); }
+
+    /* Certs */
+    .certs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .cert {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(0,200,255,0.2);
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="avatar-wrap">
+      <div class="avatar-ring" id="ring"></div>
+      <div class="avatar">N</div>
+    </div>
+
+    <div class="bars" id="bars">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+
+    <h1>Namdi Onwuachu</h1>
+    <div class="role">Principal Cloud & Solutions Architect</div>
+    <div class="company">Kandi On Digital · AI Delegate</div>
+
+    <hr class="divider" />
+
+    <div class="message" id="message">Listening for meeting context…</div>
+
+    <div class="status-row">
+      <div class="dot" id="dot"></div>
+      <div class="status-text" id="statusText">Ready</div>
+    </div>
+
+    <div class="certs">
+      <span class="cert">AWS SAP</span>
+      <span class="cert">AWS AI Practitioner</span>
+      <span class="cert">LSSBB</span>
+    </div>
+
+    <audio id="audioPlayer" crossorigin="anonymous"></audio>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const audioUrl = params.get("audio_url");
+    const message = params.get("message");
+
+    const messageEl = document.getElementById("message");
+    const statusEl = document.getElementById("statusText");
+    const dotEl = document.getElementById("dot");
+    const barsEl = document.getElementById("bars");
+    const ringEl = document.getElementById("ring");
+    const audioPlayer = document.getElementById("audioPlayer");
+
+    if (message) messageEl.textContent = decodeURIComponent(message);
+
+    function setSpeaking(active) {
+      if (active) {
+        barsEl.classList.add("active");
+        ringEl.classList.add("speaking");
+        dotEl.classList.add("live");
+        statusEl.classList.add("live");
+        statusEl.textContent = "Speaking…";
+      } else {
+        barsEl.classList.remove("active");
+        ringEl.classList.remove("speaking");
+        dotEl.classList.remove("live");
+        statusEl.classList.remove("live");
+        statusEl.textContent = "Listening…";
+        messageEl.textContent = "Listening for meeting context…";
+      }
+    }
+
+    async function playAudio(url) {
+      try {
+        statusEl.textContent = "Preparing response…";
+        audioPlayer.src = url;
+        audioPlayer.autoplay = true;
+
+        audioPlayer.addEventListener("playing", () => setSpeaking(true), { once: true });
+        audioPlayer.addEventListener("ended", () => setSpeaking(false), { once: true });
+        audioPlayer.addEventListener("error", () => {
+          statusEl.textContent = "Audio unavailable";
+          setSpeaking(false);
+        }, { once: true });
+
+        await audioPlayer.play();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Playback blocked";
+      }
+    }
+
+    if (audioUrl) playAudio(decodeURIComponent(audioUrl));
+  </script>
+</body>
+</html>
