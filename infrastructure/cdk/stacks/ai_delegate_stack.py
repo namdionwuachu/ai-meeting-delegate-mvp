@@ -241,6 +241,8 @@ class AIDelegateStack(Stack):
             "MEETING_REALTIME_URL_PARAM": f"{ssm_parameter_prefix}/meeting/realtime-url",
             "ELEVENLABS_API_KEY_PARAM": elevenlabs_api_key_param,
             "ELEVENLABS_VOICE_ID_PARAM": elevenlabs_voice_id_param,
+            "LIVEAVATAR_API_KEY_PARAM": f"{ssm_parameter_prefix}/liveavatar/api-key",
+            "LIVEAVATAR_AVATAR_ID_PARAM": f"{ssm_parameter_prefix}/liveavatar/avatar-id",
             "RECALL_API_KEY_PARAM": recall_api_key_param,
             "RECALL_API_BASE_URL_PARAM": recall_api_base_url_param,
             "HEYGEN_API_KEY_PARAM": heygen_api_key_param,

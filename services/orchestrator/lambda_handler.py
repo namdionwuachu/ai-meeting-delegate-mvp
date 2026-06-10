@@ -83,51 +83,47 @@ def handler(event, context):
                 result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
                 print(f"[REALTIME] start_audio_output result={result}")
             
+                avatar_base_url = os.environ.get("AVATAR_STATIC_URL", "")
+                encoded_audio = quote(audio_url, safe="")
+                encoded_message = quote(answer[:180], safe="")
+
                 try:
-                    from avatar.heygen_client import create_session, send_text
+                    from avatar.liveavatar_client import create_session_token, start_session
 
-                    session = create_session()
-
+                    session = create_session_token()
                     if session.get("created"):
-                        session_id = session["response"]["data"]["session_id"]
-                        stream_url = session["response"]["data"]["url"]
-
-                        send_text(session_id=session_id, text=answer)
-
-                        avatar_result = start_output_media(
-                            bot_id=bot_id,
-                            webpage_url=stream_url,
-                        )
-
-                        print(f"[REALTIME] heygen avatar_result={avatar_result}")
-
+                        session_result = start_session(session["session_token"])
+                        if session_result.get("started"):
+                            encoded_token = quote(session["session_token"], safe="")
+                            avatar_url = (
+                                f"{avatar_base_url}/avatar.html"
+                                f"?session_token={encoded_token}"
+                                f"&audio_url={encoded_audio}"
+                                f"&message={encoded_message}"
+                            )
+                            print(f"[REALTIME] liveavatar session started")
+                        else:
+                            raise Exception(f"LiveAvatar start failed: {session_result}")
                     else:
-                        raise Exception(f"HeyGen session failed: {session}")
+                        raise Exception(f"LiveAvatar token failed: {session}")
 
                 except Exception as e:
-                    print(f"[REALTIME] heygen_failed fallback_to_static error={str(e)}")
+                    print(f"[REALTIME] liveavatar_failed fallback_to_static error={str(e)}")
+                    avatar_url = (
+                        f"{avatar_base_url}/avatar.html"
+                        f"?audio_url={encoded_audio}"
+                        f"&message={encoded_message}"
+                    )
 
-                    avatar_base_url = os.environ.get("AVATAR_STATIC_URL", "")
-
-                    if avatar_base_url:
-                        encoded_audio = quote(audio_url, safe="")
-                        encoded_message = quote(answer[:180], safe="")
-
-                        avatar_url = (
-                            f"{avatar_base_url}/avatar.html"
-                            f"?audio_url={encoded_audio}"
-                            f"&message={encoded_message}"
-                        )
-
-                        avatar_result = start_output_media(
-                            bot_id=bot_id,
-                            webpage_url=avatar_url,
-                        )
-
-                        print(f"[REALTIME] static avatar_result={avatar_result}")
-                    else:
-                        print("[REALTIME] No AVATAR_STATIC_URL configured")   
-            # ADD IT HERE
+                if avatar_base_url:
+                    avatar_result = start_output_media(
+                        bot_id=bot_id,
+                        webpage_url=avatar_url,
+                    )
+                    print(f"[REALTIME] avatar_result={avatar_result}")
+                else:
+                    print("[REALTIME] No AVATAR_STATIC_URL configured")
+                    
             return {
                 "ok": True,
                 "source": "realtime",

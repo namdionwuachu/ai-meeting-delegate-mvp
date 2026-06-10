@@ -41,7 +41,6 @@
       position: relative;
     }
 
-    /* Avatar ring */
     .avatar-wrap {
       position: relative;
       width: 140px;
@@ -72,7 +71,19 @@
       50% { box-shadow: 0 0 0 14px transparent; }
     }
 
-    .avatar {
+    /* Live avatar video */
+    #avatarVideo {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      object-fit: cover;
+      position: relative;
+      z-index: 1;
+      display: none;
+    }
+
+    /* Fallback initials avatar */
+    .avatar-fallback {
       width: 140px;
       height: 140px;
       border-radius: 50%;
@@ -88,7 +99,6 @@
       z-index: 1;
     }
 
-    /* Sound bars */
     .bars {
       display: flex;
       align-items: flex-end;
@@ -154,7 +164,6 @@
       line-height: 1.6;
       color: var(--text);
       min-height: 48px;
-      transition: opacity 0.3s;
     }
 
     .status-row {
@@ -191,7 +200,6 @@
 
     .status-text.live { color: var(--accent); }
 
-    /* Certs */
     .certs {
       display: flex;
       flex-wrap: wrap;
@@ -215,7 +223,8 @@
   <div class="card">
     <div class="avatar-wrap">
       <div class="avatar-ring" id="ring"></div>
-      <div class="avatar">N</div>
+      <video id="avatarVideo" autoplay playsinline muted></video>
+      <div class="avatar-fallback" id="fallback">N</div>
     </div>
 
     <div class="bars" id="bars">
@@ -242,14 +251,19 @@
     <div class="certs">
       <span class="cert">AWS SAP</span>
       <span class="cert">AWS AI Practitioner</span>
+      <span class="cert">PMP</span>
       <span class="cert">LSSBB</span>
     </div>
 
     <audio id="audioPlayer" crossorigin="anonymous"></audio>
   </div>
 
+  <!-- LiveAvatar Web SDK -->
+  <script src="https://unpkg.com/@heygen/liveavatar-web-sdk@latest/dist/index.umd.js"></script>
+
   <script>
     const params = new URLSearchParams(window.location.search);
+    const sessionToken = params.get("session_token");
     const audioUrl = params.get("audio_url");
     const message = params.get("message");
 
@@ -259,6 +273,8 @@
     const barsEl = document.getElementById("bars");
     const ringEl = document.getElementById("ring");
     const audioPlayer = document.getElementById("audioPlayer");
+    const avatarVideo = document.getElementById("avatarVideo");
+    const fallback = document.getElementById("fallback");
 
     if (message) messageEl.textContent = decodeURIComponent(message);
 
@@ -279,19 +295,90 @@
       }
     }
 
-    async function playAudio(url) {
+    // ── LiveAvatar streaming ──────────────────────────────────────────
+    async function startLiveAvatar(token) {
+      try {
+        statusEl.textContent = "Connecting avatar…";
+
+        const { LiveAvatarSession, AgentEventsEnum } = window.LiveAvatarSDK || window["@heygen/liveavatar-web-sdk"] || {};
+
+        if (!LiveAvatarSession) {
+          console.warn("LiveAvatar SDK not loaded, falling back to static");
+          return false;
+        }
+
+        const session = new LiveAvatarSession();
+
+        session.on(AgentEventsEnum.AVATAR_START_TALKING, () => setSpeaking(true));
+        session.on(AgentEventsEnum.AVATAR_STOP_TALKING, () => setSpeaking(false));
+        session.on(AgentEventsEnum.SESSION_STATE_UPDATED, (e) => {
+          if (e.state === "connected") {
+            statusEl.textContent = "Listening…";
+          }
+        });
+
+        await session.startSession({
+          sessionToken: token,
+          onVideoReady: (stream) => {
+            avatarVideo.srcObject = stream;
+            avatarVideo.style.display = "block";
+            fallback.style.display = "none";
+          },
+        });
+
+        // Send audio to LiveAvatar for lip-sync if audio_url provided
+        if (audioUrl) {
+          await sendAudioToAvatar(session, decodeURIComponent(audioUrl));
+        }
+
+        return true;
+      } catch (err) {
+        console.error("LiveAvatar error:", err);
+        return false;
+      }
+    }
+
+    async function sendAudioToAvatar(session, url) {
+      try {
+        statusEl.textContent = "Preparing response…";
+        const resp = await fetch(url);
+        const arrayBuffer = await resp.arrayBuffer();
+
+        // Convert to PCM 24kHz for LiveAvatar LITE mode
+        const audioCtx = new AudioContext({ sampleRate: 24000 });
+        const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+        const pcmData = decoded.getChannelData(0);
+        const int16 = new Int16Array(pcmData.length);
+        for (let i = 0; i < pcmData.length; i++) {
+          int16[i] = Math.max(-32768, Math.min(32767, pcmData[i] * 32767));
+        }
+
+        // Base64 encode
+        const bytes = new Uint8Array(int16.buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const b64 = btoa(binary);
+
+        setSpeaking(true);
+        await session.speak({ audio: b64 });
+      } catch (err) {
+        console.error("Audio send error:", err);
+        setSpeaking(false);
+      }
+    }
+
+    // ── Static audio fallback ─────────────────────────────────────────
+    async function playStaticAudio(url) {
       try {
         statusEl.textContent = "Preparing response…";
         audioPlayer.src = url;
         audioPlayer.autoplay = true;
-
         audioPlayer.addEventListener("playing", () => setSpeaking(true), { once: true });
         audioPlayer.addEventListener("ended", () => setSpeaking(false), { once: true });
         audioPlayer.addEventListener("error", () => {
           statusEl.textContent = "Audio unavailable";
           setSpeaking(false);
         }, { once: true });
-
         await audioPlayer.play();
       } catch (err) {
         console.error(err);
@@ -299,7 +386,19 @@
       }
     }
 
-    if (audioUrl) playAudio(decodeURIComponent(audioUrl));
+    // ── Entry point ───────────────────────────────────────────────────
+    async function init() {
+      if (sessionToken) {
+        const connected = await startLiveAvatar(decodeURIComponent(sessionToken));
+        if (!connected && audioUrl) {
+          await playStaticAudio(decodeURIComponent(audioUrl));
+        }
+      } else if (audioUrl) {
+        await playStaticAudio(decodeURIComponent(audioUrl));
+      }
+    }
+
+    init();
   </script>
 </body>
 </html>
