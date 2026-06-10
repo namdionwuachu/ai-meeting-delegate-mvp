@@ -51,7 +51,6 @@ def create_bot(
             "url": realtime_url,
             "events": [
                 "transcript.data",
-                "transcript.partial_data",
             ],
         }
     ]
