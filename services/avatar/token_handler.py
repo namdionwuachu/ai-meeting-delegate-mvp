@@ -28,11 +28,16 @@ def handler(event, context):
     result = table.get_item(
         Key={
             "meeting_id": bot_id,
-            "event_ts": "liveavatar_token",
+            "event_ts": "avatar_config",
         }
     )
     item = result.get("Item")
     if not item:
         return _response(404, {"error": "session_token not found"})
 
-    return _response(200, {"session_token": item.get("session_token")})
+    return _response(200, {
+        "session_token": item.get("session_token"),
+        "audio_url": item.get("audio_url"),
+        "message": item.get("message"),
+    })
+    
