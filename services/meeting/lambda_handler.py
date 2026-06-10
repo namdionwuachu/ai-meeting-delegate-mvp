@@ -16,9 +16,24 @@ def handler(event, context):
     owner_name = body.get("owner_name", os.environ.get("DEFAULT_OWNER_NAME", "Namdi Onwuachu"))
     if not meeting_url:
         return _response(400, {"error": "meeting_url is required"})
+    
     bot = create_bot(
         meeting_url=meeting_url,
         bot_name=body.get("bot_name", f"{owner_name.split()[0]} [AI Delegate]"),
         metadata={"persona_id": body.get("persona_id", "namdi"), "owner_name": owner_name},
     )
+
+    # Inject avatar card as soon as bot joins
+    if bot.get("created"):
+        bot_id = bot.get("response", {}).get("id")
+        avatar_base_url = os.environ.get("AVATAR_STATIC_URL", "")
+        if bot_id and avatar_base_url:
+            from .output_media import start_output_media
+            start_output_media(
+                bot_id=bot_id,
+                webpage_url=f"{avatar_base_url}/avatar.html",
+            )
+
     return _response(200, {"bot": bot, "disclosure_message": disclosure_message(owner_name)})
+    
+
