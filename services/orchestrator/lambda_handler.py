@@ -82,13 +82,14 @@ def handler(event, context):
             if audio_url and bot_id:
                 result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
                 print(f"[REALTIME] start_audio_output result={result}")
-            
+
                 avatar_base_url = os.environ.get("AVATAR_STATIC_URL", "")
                 encoded_audio = quote(audio_url, safe="")
                 encoded_message = quote(answer[:180], safe="")
+                liveavatar_ok = False
 
                 try:
-                    from avatar.liveavatar_client import create_session_token, start_session
+                    from avatar.liveavatar_client import create_session_token, start_session, stop_session
 
                     session = create_session_token()
                     if session.get("created"):
@@ -101,7 +102,18 @@ def handler(event, context):
                                 f"&audio_url={encoded_audio}"
                                 f"&message={encoded_message}"
                             )
-                            print(f"[REALTIME] liveavatar session started")
+                            avatar_result = start_output_media(
+                                bot_id=bot_id,
+                                webpage_url=avatar_url,
+                            )
+                            print(f"[REALTIME] liveavatar avatar_result={avatar_result}")
+                            liveavatar_ok = True
+
+                            import time
+                            audio_duration = (audio_result or {}).get("duration_seconds", 10)
+                            time.sleep(audio_duration + 2)
+                            stop_result = stop_session(session["session_token"])
+                            print(f"[REALTIME] liveavatar stop_result={stop_result}")
                         else:
                             raise Exception(f"LiveAvatar start failed: {session_result}")
                     else:
@@ -109,20 +121,19 @@ def handler(event, context):
 
                 except Exception as e:
                     print(f"[REALTIME] liveavatar_failed fallback_to_static error={str(e)}")
+
+                if not liveavatar_ok and avatar_base_url:
                     avatar_url = (
                         f"{avatar_base_url}/avatar.html"
                         f"?audio_url={encoded_audio}"
                         f"&message={encoded_message}"
                     )
-
-                if avatar_base_url:
                     avatar_result = start_output_media(
                         bot_id=bot_id,
                         webpage_url=avatar_url,
                     )
-                    print(f"[REALTIME] avatar_result={avatar_result}")
-                else:
-                    print("[REALTIME] No AVATAR_STATIC_URL configured")
+                    print(f"[REALTIME] static avatar_result={avatar_result}")
+                       
                     
             return {
                 "ok": True,
