@@ -12,8 +12,20 @@ DEFAULT_SILENCE_GAP_MS = 800
 
 def is_addressed_to_delegate(transcript: str, owner_names: list[str] | None = None) -> bool:
     text = transcript or ""
-    names = owner_names or ["namdi", "assistant"]
-    return any(re.search(rf"\b{name}\b", text, re.I) for name in names)
+
+    direct_address_patterns = [
+        r"\bnamdi[,\s]",
+        r"\bhey namdi\b",
+        r"\bhi namdi\b",
+        r"\bassistant[,\?]",
+        r"\bwho is on the call\b",
+        r"\bintroduce yourself\b",
+        r"\bwho are you\b",
+        r"\bwho are you\b",
+        r"\bcan you help\b",
+    ]
+
+    return any(re.search(p, text, re.I) for p in direct_address_patterns)
 
 
 def should_respond(transcript: str, silence_gap_ms: int = DEFAULT_SILENCE_GAP_MS) -> dict:
