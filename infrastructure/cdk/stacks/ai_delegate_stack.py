@@ -214,6 +214,7 @@ class AIDelegateStack(Stack):
             "VOICE_TABLE": voice_table.table_name,
             "SESSIONS_TABLE": sessions_table.table_name,
             "DOCS_BUCKET": docs_bucket.bucket_name,
+            "ORCHESTRATOR_FUNCTION_NAME": f"{construct_id}-delegate-orchestrator",
             "AUDIT_BUCKET": audit_bucket.bucket_name,
             "AUDIO_BUCKET": audio_bucket.bucket_name,
             "MEETING_REALTIME_URL_PARAM": f"{ssm_parameter_prefix}/meeting/realtime-url",

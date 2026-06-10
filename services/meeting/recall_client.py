@@ -46,11 +46,15 @@ def create_bot(
 
     if realtime_url:
         recording_config["realtime_endpoints"] = [
-            {
-                "type": "webhook",
-                "url": realtime_url,
-            }
-        ]
+        {
+            "type": "webhook",
+            "url": realtime_url,
+            "events": [
+                "transcript.data",
+                "transcript.partial_data",
+            ],
+        }
+    ]
 
     payload = {
         "meeting_url": meeting_url,

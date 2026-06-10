@@ -13,6 +13,7 @@ from policy.output_guardrails import check_output
 from policy.escalation import escalate
 from voice.voice_router import synthesize_voice
 from audit.audit_writer import write_audit_record
+from meeting.output_media import start_audio_output  # ← new import
 
 
 def _response(status_code: int, body: dict):
@@ -26,6 +27,50 @@ def _response(status_code: int, body: dict):
 def handler(event, context):
     """Main API Lambda for POST /delegate/respond."""
     try:
+        # ── Realtime meeting invocation (async from realtime_handler) ──
+        if event.get("source") == "realtime":
+            transcript = event.get("transcript", "")
+            bot_id = event.get("bot_id")
+            meeting_id = event.get("meeting_id", "realtime-session")
+            persona_id = "namdi"
+
+            if not transcript or not bot_id:
+                return
+
+            policy = check_policy(transcript, source="INPUT")
+            if policy["decision"] == "block":
+                return
+
+            persona = load_persona(persona_id)
+            rag_context = retrieve_context(transcript, persona_id)
+            examples = load_examples(persona_id, policy.get("intent", "general"))
+            generation = generate_delegate_response(
+                question=transcript,
+                persona=persona,
+                rag_context=rag_context,
+                examples=examples,
+                policy=policy,
+            )
+            answer = generation["text"]
+
+            output_policy = check_output(answer, source="OUTPUT")
+            if output_policy["decision"] == "block":
+                return
+
+            audio_result = synthesize_voice(
+                text=answer,
+                voice_profile_id=os.environ.get("DEFAULT_VOICE_PROFILE_ID", "namdi-v1"),
+                meeting_id=meeting_id,
+                output_mode="file",
+            )
+
+            audio_url = (audio_result or {}).get("url") or (audio_result or {}).get("presigned_url")
+            if audio_url and bot_id:
+                start_audio_output(bot_id=bot_id, audio_url=audio_url)
+
+            return
+
+        # ── Existing HTTP API flow below ──
         if event.get("httpMethod") == "GET":
             return _response(200, {"status": "ok", "service": "ai-meeting-delegate"})
 

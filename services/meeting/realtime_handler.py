@@ -8,6 +8,9 @@ from typing import Any
 
 from .turn_taking import should_respond
 
+
+lambda_client = boto3.client("lambda")
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -81,6 +84,22 @@ def handler(event, context):
             }
         )
     )
+    
+    if turn_decision.get("should_respond") and transcript_text:
+        bot_id = body.get("bot_id") or (body.get("data") or {}).get("bot_id")
+
+        lambda_client.invoke(
+            FunctionName=os.environ["ORCHESTRATOR_FUNCTION_NAME"],
+            InvocationType="Event",
+            Payload=json.dumps({
+                "source": "realtime",
+                "transcript": transcript_text,
+                "bot_id": bot_id,
+            }).encode(),
+        )
+
+        logger.info(f"Triggered orchestrator for bot {bot_id}")
+
 
     return _response(
         200,
