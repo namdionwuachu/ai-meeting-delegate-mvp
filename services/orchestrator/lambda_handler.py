@@ -117,6 +117,7 @@ def handler(event, context):
                                 f"&message={encoded_message}"
                                 f"&token_url={quote(avatar_api_url, safe='')}"
                             )
+                            print(f"[REALTIME] avatar_url_length={len(avatar_url)} avatar_url={avatar_url[:200]!r}")
                             avatar_result = start_output_media(
                                 bot_id=bot_id,
                                 webpage_url=avatar_url,
