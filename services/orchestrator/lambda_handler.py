@@ -2,7 +2,7 @@ import json
 import os
 import traceback
 from datetime import datetime, timezone
-
+from urllib.parse import quote
 from persona.persona_loader import load_persona
 from persona.examples_loader import load_examples
 from persona.rag_retriever import retrieve_context
@@ -13,7 +13,7 @@ from policy.output_guardrails import check_output
 from policy.escalation import escalate
 from voice.voice_router import synthesize_voice
 from audit.audit_writer import write_audit_record
-from meeting.output_media import start_audio_output  # ← new import
+from meeting.output_media import start_audio_output, start_output_media
 
 
 def _response(status_code: int, body: dict):
@@ -73,11 +73,21 @@ def handler(event, context):
                 or (audio_result or {}).get("url")
                 or (audio_result or {}).get("presigned_url")
             )
+            
             print(f"[REALTIME] audio_result={audio_result} audio_url={audio_url!r}")
             if audio_url and bot_id:
                 result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
                 print(f"[REALTIME] start_audio_output result={result}")
+
+                avatar_base_url = os.environ.get("AVATAR_STATIC_URL", "")
+                if avatar_base_url:
+                    encoded_audio = quote(audio_url, safe="")
+                    encoded_message = quote(answer[:120], safe="")
+                    avatar_url = f"{avatar_base_url}/avatar.html?audio_url={encoded_audio}&message={encoded_message}"
+                    avatar_result = start_output_media(bot_id=bot_id, webpage_url=avatar_url)
+                    print(f"[REALTIME] start_output_media result={avatar_result}")
             return
+            
 
         # ── Existing HTTP API flow below ──
         if event.get("httpMethod") == "GET":
