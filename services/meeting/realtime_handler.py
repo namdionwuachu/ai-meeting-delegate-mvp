@@ -55,19 +55,21 @@ def _extract_text(payload: dict[str, Any]) -> str:
         if isinstance(value, str) and value.strip():
             return value.strip()
 
-    # Handle word-level transcript arrays
+    # Handle Recall's nested data.data.words structure
     data = payload.get("data")
     if isinstance(data, dict):
-        words = data.get("words")
-        if isinstance(words, list):
-            return " ".join(
-                str(w.get("text") or w.get("word") or "").strip()
-                for w in words
-                if isinstance(w, dict)
-            ).strip()
+        inner_data = data.get("data")
+        if isinstance(inner_data, dict):
+            words = inner_data.get("words")
+            if isinstance(words, list):
+                return " ".join(
+                    str(w.get("text") or "").strip()
+                    for w in words
+                    if isinstance(w, dict)
+                ).strip()
 
     return ""
-
+    
 
 def handler(event, context):
     logger.info("Recall realtime event received")
