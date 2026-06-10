@@ -81,6 +81,17 @@ def handler(event, context):
     body = _safe_json_loads(event.get("body"))
 
     transcript_text = _extract_text(body)
+
+    # Ignore the bot's own speech BEFORE evaluating turn decision
+    participant_id = (
+        (body.get("data") or {})
+        .get("data", {})
+        .get("participant", {})
+        .get("id")
+    )
+    if participant_id == 0:
+        return _response(200, {"received": True, "skipped": "bot_own_speech"})
+
     turn_decision = should_respond(transcript_text)
 
     logger.info(
@@ -91,16 +102,6 @@ def handler(event, context):
             }
         )
     )
-    
-   # Ignore the bot's own speech to prevent feedback loops
-    participant_id = (
-        (body.get("data") or {})
-        .get("data", {})
-        .get("participant", {})
-        .get("id")
-    )
-    if participant_id == 0:
-        return _response(200, {"received": True, "skipped": "bot_own_speech"})
     
     if turn_decision.get("respond") and transcript_text:
         bot_id = (
