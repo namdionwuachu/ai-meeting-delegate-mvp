@@ -494,6 +494,13 @@ class AIDelegateStack(Stack):
                     resources=["*"],
                 )
             )
+            
+        meeting_realtime_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["lambda:InvokeFunction"],
+                resources=[orchestrator_fn.function_arn],
+            )
+        )    
 
         api = apigw.RestApi(
             self,
