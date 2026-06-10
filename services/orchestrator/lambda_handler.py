@@ -75,35 +75,65 @@ def handler(event, context):
             )
             
             print(f"[REALTIME] audio_result={audio_result} audio_url={audio_url!r}")
+            
+
+            avatar_result = None
+
             if audio_url and bot_id:
                 result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
                 print(f"[REALTIME] start_audio_output result={result}")
-                
-                
-                # Try HeyGen streaming first, fall back to static S3 avatar
-                from avatar.heygen_client import create_session, send_text
-                from shared_ssm import get_env_or_parameter
-                heygen_key = get_env_or_parameter("HEYGEN_API_KEY", "HEYGEN_API_KEY_PARAM")
+            
+                try:
+                    from avatar.heygen_client import create_session, send_text
 
-                if heygen_key:
                     session = create_session()
+
                     if session.get("created"):
                         session_id = session["response"]["data"]["session_id"]
                         stream_url = session["response"]["data"]["url"]
+
                         send_text(session_id=session_id, text=answer)
-                        avatar_result = start_output_media(bot_id=bot_id, webpage_url=stream_url)
-                        print(f"[REALTIME] heygen avatar result={avatar_result}")
+
+                        avatar_result = start_output_media(
+                            bot_id=bot_id,
+                            webpage_url=stream_url,
+                        )
+
+                        print(f"[REALTIME] heygen avatar_result={avatar_result}")
+
                     else:
-                        print(f"[REALTIME] HeyGen session failed={session}")
-                else:
+                        raise Exception(f"HeyGen session failed: {session}")
+
+                except Exception as e:
+                    print(f"[REALTIME] heygen_failed fallback_to_static error={str(e)}")
+
                     avatar_base_url = os.environ.get("AVATAR_STATIC_URL", "")
+
                     if avatar_base_url:
                         encoded_audio = quote(audio_url, safe="")
-                        encoded_message = quote(answer[:120], safe="")
-                        avatar_url = f"{avatar_base_url}/avatar.html?audio_url={encoded_audio}&message={encoded_message}"
-                        avatar_result = start_output_media(bot_id=bot_id, webpage_url=avatar_url)
-                        print(f"[REALTIME] static avatar result={avatar_result}")
-            
+                        encoded_message = quote(answer[:180], safe="")
+
+                        avatar_url = (
+                            f"{avatar_base_url}/avatar.html"
+                            f"?audio_url={encoded_audio}"
+                            f"&message={encoded_message}"
+                        )
+
+                        avatar_result = start_output_media(
+                            bot_id=bot_id,
+                            webpage_url=avatar_url,
+                        )
+
+                        print(f"[REALTIME] static avatar_result={avatar_result}")
+                    else:
+                        print("[REALTIME] No AVATAR_STATIC_URL configured")   
+            # ADD IT HERE
+            return {
+                "ok": True,
+                "source": "realtime",
+                "audio_url": audio_url,
+                "avatar_result": avatar_result,
+            }
 
         # ── Existing HTTP API flow below ──
         if event.get("httpMethod") == "GET":
@@ -117,6 +147,8 @@ def handler(event, context):
 
         if not transcript:
             return _response(400, {"error": "transcript or question is required"})
+        
+        
 
         policy = check_policy(transcript, source="INPUT")
         if policy["decision"] == "block":
