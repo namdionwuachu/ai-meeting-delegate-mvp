@@ -91,7 +91,11 @@ def handler(event, context):
     )
     
     if turn_decision.get("respond") and transcript_text:
-        bot_id = body.get("bot_id") or (body.get("data") or {}).get("bot_id")
+        bot_id = (
+            body.get("bot_id")
+            or (body.get("data") or {}).get("bot_id")
+            or (((body.get("data") or {}).get("bot") or {})).get("id")
+        )
 
         lambda_client.invoke(
             FunctionName=os.environ["ORCHESTRATOR_FUNCTION_NAME"],
