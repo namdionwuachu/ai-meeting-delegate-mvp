@@ -106,3 +106,19 @@ def start_session(session_token: str) -> dict[str, Any]:
             "reason": "liveavatar_start_failed",
             "error": str(exc),
         }
+        
+def stop_session(session_token: str) -> dict[str, Any]:
+    try:
+        resp = requests.delete(
+            "https://api.liveavatar.com/v1/sessions",
+            headers={
+                "Authorization": f"Bearer {session_token}",
+                "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return {"stopped": True}
+    except Exception as exc:
+        return {"stopped": False, "error": str(exc)}
