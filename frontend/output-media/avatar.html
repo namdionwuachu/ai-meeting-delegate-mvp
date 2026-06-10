@@ -263,7 +263,6 @@
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    const sessionToken = params.get("session_token");
     const audioUrl = params.get("audio_url");
     const message = params.get("message");
 
@@ -387,13 +386,32 @@
     }
 
     // ── Entry point ───────────────────────────────────────────────────
+   
     async function init() {
-      if (sessionToken) {
-        const connected = await startLiveAvatar(decodeURIComponent(sessionToken));
-        if (!connected && audioUrl) {
-          await playStaticAudio(decodeURIComponent(audioUrl));
+      const botId = params.get("bot_id");
+      const tokenUrl = params.get("token_url");
+
+      if (botId && tokenUrl) {
+        try {
+          statusEl.textContent = "Connecting avatar…";
+          const resp = await fetch(
+            `${decodeURIComponent(tokenUrl)}?bot_id=${botId}`
+          );
+          const data = await resp.json();
+          if (data.session_token) {
+            const connected = await startLiveAvatar(data.session_token);
+            if (!connected && audioUrl) {
+              await playStaticAudio(decodeURIComponent(audioUrl));
+            }
+            return;
+          }
+        } catch (err) {
+          console.error("Token fetch error:", err);
         }
-      } else if (audioUrl) {
+      }
+
+      // fallback — static audio only
+      if (audioUrl) {
         await playStaticAudio(decodeURIComponent(audioUrl));
       }
     }

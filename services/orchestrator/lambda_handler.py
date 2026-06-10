@@ -1,6 +1,8 @@
 import json
 import os
 import traceback
+import boto3
+dynamodb = boto3.resource("dynamodb")
 from datetime import datetime, timezone
 from urllib.parse import quote
 from persona.persona_loader import load_persona
@@ -87,20 +89,33 @@ def handler(event, context):
                 encoded_audio = quote(audio_url, safe="")
                 encoded_message = quote(answer[:180], safe="")
                 liveavatar_ok = False
-
+                           
+                
                 try:
                     from avatar.liveavatar_client import create_session_token, start_session, stop_session
+                    import time
 
                     session = create_session_token()
                     if session.get("created"):
+                        # store token in DynamoDB keyed by bot_id
+                        table = dynamodb.Table(os.environ["SESSIONS_TABLE"])
+                        table.put_item(Item={
+                            "meeting_id": bot_id,
+                            "event_ts": "liveavatar_token",
+                            "session_token": session["session_token"],
+                            "ttl": int(time.time()) + 300,
+                        })
+
                         session_result = start_session(session["session_token"])
                         if session_result.get("started"):
-                            encoded_token = quote(session["session_token"], safe="")
+                            # short URL — no JWT in query string
+                            avatar_api_url = os.environ.get("AVATAR_TOKEN_API_URL", "")
                             avatar_url = (
                                 f"{avatar_base_url}/avatar.html"
-                                f"?session_token={encoded_token}"
+                                f"?bot_id={bot_id}"
                                 f"&audio_url={encoded_audio}"
                                 f"&message={encoded_message}"
+                                f"&token_url={quote(avatar_api_url, safe='')}"
                             )
                             avatar_result = start_output_media(
                                 bot_id=bot_id,
@@ -109,7 +124,6 @@ def handler(event, context):
                             print(f"[REALTIME] liveavatar avatar_result={avatar_result}")
                             liveavatar_ok = True
 
-                            import time
                             audio_duration = (audio_result or {}).get("duration_seconds", 10)
                             time.sleep(audio_duration + 2)
                             stop_result = stop_session(session["session_token"])
@@ -121,6 +135,7 @@ def handler(event, context):
 
                 except Exception as e:
                     print(f"[REALTIME] liveavatar_failed fallback_to_static error={str(e)}")
+                
 
                 if not liveavatar_ok and avatar_base_url:
                     avatar_url = (

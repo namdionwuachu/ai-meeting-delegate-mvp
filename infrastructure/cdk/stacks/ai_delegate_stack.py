@@ -245,6 +245,7 @@ class AIDelegateStack(Stack):
             "LIVEAVATAR_AVATAR_ID_PARAM": f"{ssm_parameter_prefix}/liveavatar/avatar-id",
             "RECALL_API_KEY_PARAM": recall_api_key_param,
             "RECALL_API_BASE_URL_PARAM": recall_api_base_url_param,
+            "AVATAR_TOKEN_API_URL": f"https://ichk94c7o2.execute-api.us-east-1.amazonaws.com/prod/avatar/token",
             "HEYGEN_API_KEY_PARAM": heygen_api_key_param,
             "HEYGEN_AVATAR_ID_PARAM": heygen_avatar_id_param,
             "DID_API_KEY_PARAM": did_api_key_param,
@@ -444,6 +445,25 @@ class AIDelegateStack(Stack):
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
         )
+        
+        
+        avatar_token_fn = _lambda.Function(
+            self,
+            "AvatarTokenFunction",
+            function_name=f"{construct_id}-avatar-token",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            handler="avatar.token_handler.handler",
+            code=_lambda.Code.from_asset(service_code_path),
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            log_group=logs.LogGroup.from_log_group_name(
+                self, "AvatarTokenFunctionLogGroup",
+                f"/aws/lambda/{construct_id}-avatar-token",
+            ),
+            tracing=_lambda.Tracing.ACTIVE,
+            environment=common_env,
+        )
 
         functions = [
             orchestrator_fn,
@@ -454,6 +474,7 @@ class AIDelegateStack(Stack):
             meeting_realtime_fn,   # <-- add this
             output_media_fn,
             avatar_fn,
+            avatar_token_fn,  # ← add this
         ]
 
         for fn in functions:
@@ -650,6 +671,13 @@ class AIDelegateStack(Stack):
             apigw.LambdaIntegration(avatar_fn, proxy=True),
             api_key_required=True,
         )
+        
+        avatar_token = avatar.add_resource("token")
+        avatar_token.add_method(
+            "GET",
+            apigw.LambdaIntegration(avatar_token_fn, proxy=True),
+            api_key_required=False,
+        )
 
         health = api.root.add_resource("health")
         health.add_method("GET", apigw.LambdaIntegration(orchestrator_fn, proxy=True))
@@ -696,3 +724,4 @@ class AIDelegateStack(Stack):
         CfnOutput(self, "GuardrailVersion", value="DRAFT")
         CfnOutput(self, "AvatarStaticUrl", value=f"http://{avatar_static_bucket.bucket_website_domain_name}")
         CfnOutput(self, "AvatarStaticBucketName", value=avatar_static_bucket.bucket_name)
+        CfnOutput(self, "AvatarTokenUrl", value=f"{api.url}avatar/token")

@@ -107,10 +107,14 @@ def start_session(session_token: str) -> dict[str, Any]:
             "error": str(exc),
         }
         
+        
+        
+        
 def stop_session(session_token: str) -> dict[str, Any]:
     try:
-        resp = requests.delete(
-            "https://api.liveavatar.com/v1/sessions",
+        resp = requests.post(
+            "https://api.liveavatar.com/v1/sessions/stop",
+            json={},
             headers={
                 "Authorization": f"Bearer {session_token}",
                 "Accept": "application/json",
@@ -121,4 +125,4 @@ def stop_session(session_token: str) -> dict[str, Any]:
         resp.raise_for_status()
         return {"stopped": True}
     except Exception as exc:
-        return {"stopped": False, "error": str(exc)}
+        return {"stopped": False, "error": str(exc)}      
