@@ -23,20 +23,37 @@ async function start() {
   console.log("Avatar config loaded", config);
   status.textContent = "Starting LiveAvatar...";
 
+  const sessionToken =
+    config.session_token ||
+    config.sessionToken ||
+    config.token;
+
+  console.log("sessionToken type", typeof sessionToken, sessionToken?.slice?.(0, 20));
+
+  if (!sessionToken || typeof sessionToken !== "string") {
+    throw new Error("Missing or invalid LiveAvatar session token");
+  }
+
   const session = new LiveAvatarSession();
 
   session.on(AgentEventsEnum.SESSION_STATE_UPDATED, (event) => {
     console.log("LiveAvatar state", event);
   });
 
-  await session.startSession({
-    sessionToken: config.session_token,
-    onVideoReady: (stream) => {
-      console.log("Video stream ready", stream);
+  session.on(AgentEventsEnum.VIDEO_STREAM_READY, (event) => {
+    console.log("Video stream ready", event);
+
+    const stream = event?.stream || event;
+
+    if (stream instanceof MediaStream) {
       video.srcObject = stream;
       status.textContent = "LiveAvatar connected";
-    },
+    } else {
+      console.error("No MediaStream found in VIDEO_STREAM_READY event", event);
+    }
   });
+
+  await session.startSession(sessionToken);
 
   if (config.audio_url) {
     audio.src = config.audio_url;

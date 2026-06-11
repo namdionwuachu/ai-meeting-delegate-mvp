@@ -259,9 +259,9 @@
   </div>
 
   <!-- LiveAvatar Web SDK -->
-  <script src="https://unpkg.com/@heygen/liveavatar-web-sdk@latest/dist/index.umd.js"></script>
+  <script type="module">
+    import { LiveAvatarSession, AgentEventsEnum } from 'https://esm.sh/@heygen/liveavatar-web-sdk';
 
-  <script>
     const params = new URLSearchParams(window.location.search);
     const audioUrl = params.get("audio_url");
     const message = params.get("message");
@@ -294,15 +294,13 @@
       }
     }
 
-    // ── LiveAvatar streaming ──────────────────────────────────────────
     async function startLiveAvatar(token) {
       try {
         statusEl.textContent = "Connecting avatar…";
 
-        const { LiveAvatarSession, AgentEventsEnum } = window.LiveAvatarSDK || window["@heygen/liveavatar-web-sdk"] || {};
-
         if (!LiveAvatarSession) {
           console.warn("LiveAvatar SDK not loaded, falling back to static");
+          statusEl.textContent = "Listening…";
           return false;
         }
 
@@ -316,16 +314,21 @@
           }
         });
 
-        await session.startSession({
-          sessionToken: token,
-          onVideoReady: (stream) => {
+        session.on(AgentEventsEnum.VIDEO_STREAM_READY, (event) => {
+          console.log("Video stream ready", event);
+          const stream = event?.stream || event;
+          if (stream instanceof MediaStream) {
             avatarVideo.srcObject = stream;
             avatarVideo.style.display = "block";
             fallback.style.display = "none";
-          },
+            statusEl.textContent = "Avatar connected";
+          } else {
+            console.error("No MediaStream found", event);
+          }
         });
 
-        // Send audio to LiveAvatar for lip-sync if audio_url provided
+        await session.startSession({ token: token });
+
         if (audioUrl) {
           await sendAudioToAvatar(session, decodeURIComponent(audioUrl));
         }
@@ -342,8 +345,6 @@
         statusEl.textContent = "Preparing response…";
         const resp = await fetch(url);
         const arrayBuffer = await resp.arrayBuffer();
-
-        // Convert to PCM 24kHz for LiveAvatar LITE mode
         const audioCtx = new AudioContext({ sampleRate: 24000 });
         const decoded = await audioCtx.decodeAudioData(arrayBuffer);
         const pcmData = decoded.getChannelData(0);
@@ -351,13 +352,10 @@
         for (let i = 0; i < pcmData.length; i++) {
           int16[i] = Math.max(-32768, Math.min(32767, pcmData[i] * 32767));
         }
-
-        // Base64 encode
         const bytes = new Uint8Array(int16.buffer);
         let binary = '';
         for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
         const b64 = btoa(binary);
-
         setSpeaking(true);
         await session.speak({ audio: b64 });
       } catch (err) {
@@ -366,11 +364,12 @@
       }
     }
 
-    // ── Static audio fallback ─────────────────────────────────────────
     async function playStaticAudio(url) {
       try {
         statusEl.textContent = "Preparing response…";
         audioPlayer.src = url;
+        audioPlayer.muted = false;
+        audioPlayer.volume = 1.0;
         audioPlayer.autoplay = true;
         audioPlayer.addEventListener("playing", () => setSpeaking(true), { once: true });
         audioPlayer.addEventListener("ended", () => setSpeaking(false), { once: true });
@@ -378,15 +377,14 @@
           statusEl.textContent = "Audio unavailable";
           setSpeaking(false);
         }, { once: true });
-        await audioPlayer.play();
+        audioPlayer.play().catch(() => {
+          statusEl.textContent = "Listening…";
+        });
       } catch (err) {
         console.error(err);
-        statusEl.textContent = "Playback blocked";
       }
     }
 
-    // ── Entry point ───────────────────────────────────────────────────
-   
     async function init() {
       const botId = params.get("bot_id");
       const tokenUrl = params.get("token_url");
@@ -394,9 +392,7 @@
       if (botId && tokenUrl) {
         try {
           statusEl.textContent = "Connecting avatar…";
-          const resp = await fetch(
-            `${decodeURIComponent(tokenUrl)}?bot_id=${botId}`
-          );
+          const resp = await fetch(`${decodeURIComponent(tokenUrl)}?bot_id=${botId}`);
           const data = await resp.json();
           if (data.session_token) {
             const connected = await startLiveAvatar(data.session_token);
@@ -410,7 +406,6 @@
         }
       }
 
-      // fallback — static audio only
       if (audioUrl) {
         await playStaticAudio(decodeURIComponent(audioUrl));
       }
@@ -418,5 +413,6 @@
 
     init();
   </script>
+  
 </body>
 </html>
