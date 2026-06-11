@@ -330,4 +330,4 @@ def handler(event, context):
 
     except Exception as exc:
         print(traceback.format_exc())
-        return _response(500, {"error": str(exc)})
+        return _response(500, {"error": str(exc)})# Fri 12 Jun 2026 00:01:22 BST
