@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.request
 
 import boto3
+import requests
 
 try:
     from shared_ssm import get_env_or_parameter
@@ -62,45 +62,43 @@ def handler(event, context):
         }
 
         # Create fresh session token
-        payload = json.dumps({
-            "avatar_id": avatar_id,
-            "mode": "LITE",
-            "is_sandbox": False,
-            "video_settings": {"quality": "high", "encoding": "H264"},
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
+        resp = requests.post(
             "https://api.liveavatar.com/v1/sessions/token",
-            data=payload,
-            method="POST",
+            json={
+                "avatar_id": avatar_id,
+                "mode": "LITE",
+                "is_sandbox": False,
+                "video_settings": {"quality": "high", "encoding": "H264"},
+            },
             headers=headers,
+            timeout=15,
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8")).get("data", {})
-            session_token = data.get("session_token")
+        resp.raise_for_status()
+        data = resp.json().get("data", {})
+        session_token = data.get("session_token")
 
         # Start session to get LiveKit credentials
-        start_req = urllib.request.Request(
+        start_resp = requests.post(
             "https://api.liveavatar.com/v1/sessions/start",
-            data=b"{}",
-            method="POST",
+            json={},
             headers={
                 "Authorization": f"Bearer {session_token}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
                 "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             },
+            timeout=15,
         )
-        with urllib.request.urlopen(start_req, timeout=15) as start_resp:
-            start_data = json.loads(start_resp.read().decode("utf-8")).get("data", {})
-            print(f"[TOKEN_HANDLER] start_data keys={list(start_data.keys())} start_data={start_data}")
-            livekit_url = start_data.get("livekit_url")
-            livekit_token = start_data.get("livekit_client_token")
-            ws_url = (
-                start_data.get("ws_url")
-                or start_data.get("websocket_url")
-                or f"wss://api.liveavatar.com/v1/sessions/ws?token={session_token}"
-            )
+        start_resp.raise_for_status()
+        start_data = start_resp.json().get("data", {})
+        print(f"[TOKEN_HANDLER] start_data keys={list(start_data.keys())} start_data={start_data}")
+        livekit_url = start_data.get("livekit_url")
+        livekit_token = start_data.get("livekit_client_token")
+        ws_url = (
+            start_data.get("ws_url")
+            or start_data.get("websocket_url")
+            or f"wss://api.liveavatar.com/v1/sessions/ws?token={session_token}"
+        )
 
         # Cache LiveKit credentials in DynamoDB
         table.update_item(
