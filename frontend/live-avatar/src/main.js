@@ -44,11 +44,48 @@ async function start() {
   await room.connect(config.livekit_url, config.livekit_token);
   status.textContent = "Connected — waiting for avatar...";
 
-  if (config.audio_url) {
+  if (config.audio_url && config.ws_url) {
+    // Connect WebSocket to send PCM audio for lip-sync
+    const ws = new WebSocket(config.ws_url);
+    
+    ws.onopen = async () => {
+      try {
+        const resp = await fetch(config.audio_url);
+        const arrayBuffer = await resp.arrayBuffer();
+        const audioCtx = new AudioContext({ sampleRate: 24000 });
+        const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+        const pcmData = decoded.getChannelData(0);
+        const int16 = new Int16Array(pcmData.length);
+        for (let i = 0; i < pcmData.length; i++) {
+          int16[i] = Math.max(-32768, Math.min(32767, pcmData[i] * 32767));
+        }
+        const bytes = new Uint8Array(int16.buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const b64 = btoa(binary);
+
+        ws.send(JSON.stringify({
+          type: "agent.speak",
+          audio: b64,
+        }));
+
+        ws.send(JSON.stringify({
+          type: "agent.speak_end",
+          event_id: "1",
+        }));
+
+        status.textContent = "Speaking…";
+      } catch (err) {
+        console.error("Audio send error:", err);
+      }
+    };
+
+    ws.onerror = (err) => console.error("WebSocket error:", err);
+  } else if (config.audio_url) {
+    // Fallback — play audio without lip-sync
     audio.src = config.audio_url;
     audio.play().catch(err => console.warn("Autoplay blocked:", err));
   }
-}
 
 start().catch((err) => {
   console.error("LiveAvatar failed", err);

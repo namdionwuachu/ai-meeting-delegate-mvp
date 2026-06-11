@@ -91,10 +91,14 @@ def handler(event, context):
     except Exception as exc:
         return _response(500, {"error": f"Session start failed: {str(exc)}"})
 
+    # Build WebSocket URL for sending audio to avatar
+    ws_url = f"wss://api.liveavatar.com/v1/sessions/ws?token={session_token}"
+
     return _response(200, {
         "session_token": session_token,
         "livekit_url": livekit_url,
         "livekit_token": livekit_token,
+        "ws_url": ws_url,
         "audio_url": item.get("audio_url"),
         "message": item.get("message"),
     })
