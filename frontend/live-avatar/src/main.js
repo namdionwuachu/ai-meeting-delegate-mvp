@@ -53,13 +53,14 @@ async function start() {
     }
   });
 
-  await session.startSession(sessionToken);
+  await session.startSession({ token: sessionToken });
 
   if (config.audio_url) {
     audio.src = config.audio_url;
-    await audio.play();
-  }
+    audio.play().catch(err => console.warn("Autoplay blocked:", err));
+  } 
 }
+  
 
 start().catch((err) => {
   console.error("LiveAvatar failed", err);

@@ -103,6 +103,8 @@ def handler(event, context):
                             "meeting_id": bot_id,
                             "event_ts": "liveavatar_token",
                             "session_token": session["session_token"],
+                            "audio_url": audio_url,
+                            "message": answer[:180],
                             "ttl": int(time.time()) + 300,
                         })
 
@@ -120,7 +122,7 @@ def handler(event, context):
                             })
 
                             avatar_url = (
-                                f"{avatar_base_url}/avatar.html"
+                                f"{avatar_base_url}/live/index.html"
                                 f"?bot_id={bot_id}"
                                 f"&token_url={quote(avatar_api_url, safe='')}"
                             )

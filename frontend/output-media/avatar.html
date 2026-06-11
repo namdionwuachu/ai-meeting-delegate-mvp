@@ -251,7 +251,6 @@
     <div class="certs">
       <span class="cert">AWS SAP</span>
       <span class="cert">AWS AI Practitioner</span>
-      <span class="cert">PMP</span>
       <span class="cert">LSSBB</span>
     </div>
 
@@ -294,7 +293,7 @@
       }
     }
 
-    async function startLiveAvatar(token) {
+    async function startLiveAvatar(token, liveAudioUrl) {
       try {
         statusEl.textContent = "Connecting avatar…";
 
@@ -329,8 +328,8 @@
 
         await session.startSession({ token: token });
 
-        if (audioUrl) {
-          await sendAudioToAvatar(session, decodeURIComponent(audioUrl));
+        if (liveAudioUrl) {
+          await sendAudioToAvatar(session, liveAudioUrl);
         }
 
         return true;
@@ -395,9 +394,11 @@
           const resp = await fetch(`${decodeURIComponent(tokenUrl)}?bot_id=${botId}`);
           const data = await resp.json();
           if (data.session_token) {
-            const connected = await startLiveAvatar(data.session_token);
-            if (!connected && audioUrl) {
-              await playStaticAudio(decodeURIComponent(audioUrl));
+            const liveAudioUrl = data.audio_url || (audioUrl ? decodeURIComponent(audioUrl) : null);
+            if (data.message) messageEl.textContent = data.message;
+            const connected = await startLiveAvatar(data.session_token, liveAudioUrl);
+            if (!connected && liveAudioUrl) {
+              await playStaticAudio(liveAudioUrl);
             }
             return;
           }
