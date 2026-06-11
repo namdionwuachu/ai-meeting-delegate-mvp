@@ -90,14 +90,12 @@ def handler(event, context):
                 encoded_message = quote(answer[:180], safe="")
                 liveavatar_ok = False
                            
-                
                 try:
-                    from avatar.liveavatar_client import create_session_token, start_session, stop_session
+                    from avatar.liveavatar_client import create_session_token
                     import time
 
                     session = create_session_token()
                     if session.get("created"):
-                        # store token in DynamoDB keyed by bot_id
                         table = dynamodb.Table(os.environ["SESSIONS_TABLE"])
                         table.put_item(Item={
                             "meeting_id": bot_id,
@@ -108,44 +106,24 @@ def handler(event, context):
                             "ttl": int(time.time()) + 300,
                         })
 
-                        session_result = start_session(session["session_token"])
-                        if session_result.get("started"):
-                            # short URL — no JWT in query string
-                            avatar_api_url = os.environ.get("AVATAR_TOKEN_API_URL", "")
-                            table.put_item(Item={
-                                "meeting_id": bot_id,
-                                "event_ts": "avatar_config",
-                                "audio_url": audio_url,
-                                "message": answer[:180],
-                                "session_token": session["session_token"],
-                                "ttl": int(time.time()) + 300,
-                            })
-
-                            avatar_url = (
-                                f"{avatar_base_url}/live/index.html"
-                                f"?bot_id={bot_id}"
-                                f"&token_url={quote(avatar_api_url, safe='')}"
-                            )
-                            print(f"[REALTIME] avatar_url_length={len(avatar_url)} avatar_url={avatar_url[:200]!r}")
-                            avatar_result = start_output_media(
-                                bot_id=bot_id,
-                                webpage_url=avatar_url,
-                            )
-                            print(f"[REALTIME] liveavatar avatar_result={avatar_result}")
-                            liveavatar_ok = True
-
-                            #audio_duration = (audio_result or {}).get("duration_seconds", 10)
-                            #time.sleep(audio_duration + 2)
-                            #stop_result = stop_session(session["session_token"])
-                            #print(f"[REALTIME] liveavatar stop_result={stop_result}")
-                        else:
-                            raise Exception(f"LiveAvatar start failed: {session_result}")
+                        avatar_api_url = os.environ.get("AVATAR_TOKEN_API_URL", "")
+                        avatar_url = (
+                            f"{avatar_base_url}/live/index.html"
+                            f"?bot_id={bot_id}"
+                            f"&token_url={quote(avatar_api_url, safe='')}"
+                        )
+                        print(f"[REALTIME] avatar_url_length={len(avatar_url)} avatar_url={avatar_url[:200]!r}")
+                        avatar_result = start_output_media(
+                            bot_id=bot_id,
+                            webpage_url=avatar_url,
+                        )
+                        print(f"[REALTIME] liveavatar avatar_result={avatar_result}")
+                        liveavatar_ok = True
                     else:
                         raise Exception(f"LiveAvatar token failed: {session}")
 
                 except Exception as e:
                     print(f"[REALTIME] liveavatar_failed fallback_to_static error={str(e)}")
-                
 
                 if not liveavatar_ok and avatar_base_url:
                     avatar_url = (
