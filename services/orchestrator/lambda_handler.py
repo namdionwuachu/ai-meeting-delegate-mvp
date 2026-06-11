@@ -111,8 +111,7 @@ def handler(event, context):
                             f"{avatar_base_url}/live/index.html"
                             f"?bot_id={bot_id}"
                             f"&token_url={quote(avatar_api_url, safe='')}"
-                            f"&audio_url={encoded_audio}"
-                            f"&message={encoded_message}"
+                        
                         )
                         print(f"[REALTIME] avatar_url_length={len(avatar_url)} avatar_url={avatar_url[:200]!r}")
                         avatar_result = start_output_media(
