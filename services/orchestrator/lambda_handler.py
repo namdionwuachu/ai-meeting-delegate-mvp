@@ -121,17 +121,17 @@ def handler(event, context):
                       
                         print(f"[REALTIME] liveavatar avatar_result={avatar_result}")
                         liveavatar_ok = True
-
                         # ── LiveKit audio publish for lip-sync ──────────────────
-                        # Publish ElevenLabs audio as LiveKit audio track
-                        # so LiveAvatar renders lip-sync server-side
+                        # Send audio to LiveAvatar via LiveKit REST API
+                        # Avoids livekit SDK numpy dependency issues in Lambda
                         try:
                             import requests as req_lib
-                            import io
-                            import asyncio
-                            from livekit import rtc
+                            import base64
+                            import json as _json
 
-                            # Get LiveKit credentials from token handler
+                            avatar_api_url = os.environ.get("AVATAR_TOKEN_API_URL", "")
+
+                            # Get LiveKit credentials
                             token_resp = req_lib.get(
                                 f"{avatar_api_url}?bot_id={bot_id}",
                                 timeout=15,
@@ -139,58 +139,41 @@ def handler(event, context):
                             token_data = token_resp.json()
                             lk_url = token_data.get("livekit_url")
                             lk_token = token_data.get("livekit_token")
+                            ws_url = token_data.get("ws_url")
 
                             if lk_url and lk_token:
+                                # Fetch MP3 from S3
                                 audio_resp = req_lib.get(audio_url, timeout=15)
-                                mp3_bytes = audio_resp.content
+                                mp3_b64 = base64.b64encode(audio_resp.content).decode("utf-8")
 
-                                async def publish_audio():
-                                    room = rtc.Room()
-                                    await room.connect(lk_url, lk_token)
-                                    source = rtc.AudioSource(24000, 1)
-                                    track = rtc.LocalAudioTrack.create_audio_track(
-                                        "agent-audio", source
-                                    )
-                                    options = rtc.TrackPublishOptions(
-                                        source=rtc.TrackSource.SOURCE_MICROPHONE
-                                    )
-                                    await room.local_participant.publish_track(track, options)
+                                # Send audio via LiveKit data channel REST API
+                                lk_http_url = lk_url.replace("wss://", "https://").replace("ws://", "http://")
+                                data_payload = _json.dumps({
+                                    "type": "agent.speak",
+                                    "audio": mp3_b64,
+                                }).encode("utf-8")
 
-                                    import miniaudio
-                                    decoded = miniaudio.decode(
-                                        mp3_bytes,
-                                        output_format=miniaudio.SampleFormat.SIGNED16,
-                                        nchannels=1,
-                                        sample_rate=24000,
-                                    )
-                                    pcm_data = bytes(decoded.samples)
+                                data_b64 = base64.b64encode(data_payload).decode("utf-8")
 
-                                    chunk_size = 24000 * 2 // 10
-                                    for i in range(0, len(pcm_data), chunk_size):
-                                        chunk = pcm_data[i:i + chunk_size]
-                                        if len(chunk) < chunk_size:
-                                            chunk = chunk + b'\x00' * (chunk_size - len(chunk))
-                                        frame = rtc.AudioFrame(
-                                            data=chunk,
-                                            sample_rate=24000,
-                                            num_channels=1,
-                                            samples_per_channel=len(chunk) // 2,
-                                        )
-                                        await source.capture_frame(frame)
-                                        await asyncio.sleep(0.1)
-
-                                    await room.disconnect()
-
-                                loop = asyncio.new_event_loop()
-                                asyncio.set_event_loop(loop)
-                                loop.run_until_complete(publish_audio())
-                                loop.close()
-                                print(f"[REALTIME] livekit audio published for lip-sync")
+                                send_resp = req_lib.post(
+                                    f"{lk_http_url}/twirp/livekit.RoomService/SendData",
+                                    json={
+                                        "room": token_data.get("room_name", ""),
+                                        "data": data_b64,
+                                        "kind": 0,
+                                    },
+                                    headers={
+                                        "Authorization": f"Bearer {lk_token}",
+                                        "Content-Type": "application/json",
+                                    },
+                                    timeout=15,
+                                )
+                                print(f"[REALTIME] livekit_send_data status={send_resp.status_code} response={send_resp.text[:200]}")
 
                         except Exception as lk_err:
                             import traceback as tb
-                            print(f"[REALTIME] livekit_publish_failed error={str(lk_err)}")
-                        # ── End LiveKit audio publish ────────────────────────────
+                            print(f"[REALTIME] livekit_publish_failed type={type(lk_err).__name__} error={str(lk_err)!r} traceback={tb.format_exc()}")
+                        
 
                     else:
                         raise Exception(f"LiveAvatar token failed: {session}")
