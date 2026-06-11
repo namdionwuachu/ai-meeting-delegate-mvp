@@ -106,6 +106,14 @@ class AIDelegateStack(Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
+            cors=[
+                s3.CorsRule(
+                    allowed_methods=[s3.HttpMethods.GET],
+                    allowed_origins=["*"],
+                    allowed_headers=["*"],
+                    max_age=3000,
+                )
+            ],
             lifecycle_rules=[
                 s3.LifecycleRule(
                     id="ExpireGeneratedAudioAfter30Days",
