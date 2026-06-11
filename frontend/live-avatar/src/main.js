@@ -49,36 +49,32 @@ async function start() {
       const arrayBuffer = await resp.arrayBuffer();
       const audioCtx = new AudioContext({ sampleRate: 24000 });
       const decoded = await audioCtx.decodeAudioData(arrayBuffer);
-      const pcmData = decoded.getChannelData(0);
-      const int16 = new Int16Array(pcmData.length);
-      for (let i = 0; i < pcmData.length; i++) {
-        int16[i] = Math.max(-32768, Math.min(32767, pcmData[i] * 32767));
-      }
-      const bytes = new Uint8Array(int16.buffer);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      const b64 = btoa(binary);
-
-      // Send via LiveKit data channel
-      await room.localParticipant.publishData(
-        new TextEncoder().encode(JSON.stringify({
-          type: "agent.speak",
-          audio: b64,
-        })),
-        { reliable: true }
+      
+      // Create MediaStream from audio buffer
+      const source = audioCtx.createBufferSource();
+      source.buffer = decoded;
+      const destination = audioCtx.createMediaStreamDestination();
+      source.connect(destination);
+      
+      // Publish as LiveKit audio track
+      const { LocalAudioTrack } = await import('livekit-client');
+      const audioTrack = new LocalAudioTrack(
+        destination.stream.getAudioTracks()[0],
+        undefined,
+        false
       );
-
-      await room.localParticipant.publishData(
-        new TextEncoder().encode(JSON.stringify({
-          type: "agent.speak_end",
-          event_id: "1",
-        })),
-        { reliable: true }
-      );
-
+      await room.localParticipant.publishTrack(audioTrack);
+      
+      // Start playing
+      source.start();
       status.textContent = "Speaking…";
+      
+      source.onended = async () => {
+        await room.localParticipant.unpublishTrack(audioTrack);
+        status.textContent = "Listening…";
+      };
     } catch (err) {
-      console.error("Audio send error:", err);
+      console.error("[LIPSYNC] Error:", err);
     }
   }
 }
