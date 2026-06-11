@@ -86,7 +86,7 @@ async function start() {
     audio.src = config.audio_url;
     audio.play().catch(err => console.warn("Autoplay blocked:", err));
   }
-
+}
 start().catch((err) => {
   console.error("LiveAvatar failed", err);
   status.textContent = `Failed: ${err.message}`;
