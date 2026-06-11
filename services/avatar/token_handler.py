@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.request
 
 import boto3
-import requests
 
 try:
     from shared_ssm import get_env_or_parameter
@@ -40,34 +40,61 @@ def handler(event, context):
     )
     item = result.get("Item", {})
 
-    # Create a fresh session token on demand
     api_key = get_env_or_parameter("LIVEAVATAR_API_KEY", "LIVEAVATAR_API_KEY_PARAM")
     avatar_id = get_env_or_parameter("LIVEAVATAR_AVATAR_ID", "LIVEAVATAR_AVATAR_ID_PARAM")
 
+    headers = {
+        "X-API-KEY": api_key,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
+
+    # Create fresh session token
     try:
-        resp = requests.post(
+        payload = json.dumps({
+            "avatar_id": avatar_id,
+            "mode": "LITE",
+            "is_sandbox": False,
+            "video_settings": {"quality": "high", "encoding": "H264"},
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
             "https://api.liveavatar.com/v1/sessions/token",
-            json={
-                "avatar_id": avatar_id,
-                "mode": "LITE",
-                "is_sandbox": False,
-                "video_settings": {"quality": "high", "encoding": "H264"},
-            },
+            data=payload,
+            method="POST",
+            headers=headers,
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8")).get("data", {})
+            session_token = data.get("session_token")
+    except Exception as exc:
+        return _response(500, {"error": f"Token creation failed: {str(exc)}"})
+
+    # Start session to get LiveKit credentials
+    try:
+        start_req = urllib.request.Request(
+            "https://api.liveavatar.com/v1/sessions/start",
+            data=b"{}",
+            method="POST",
             headers={
-                "X-API-KEY": api_key,
+                "Authorization": f"Bearer {session_token}",
+                "Content-Type": "application/json",
                 "Accept": "application/json",
                 "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             },
-            timeout=15,
         )
-        resp.raise_for_status()
-        data = resp.json().get("data", {})
-        session_token = data.get("session_token")
+        with urllib.request.urlopen(start_req, timeout=15) as start_resp:
+            start_data = json.loads(start_resp.read().decode("utf-8")).get("data", {})
+            livekit_url = start_data.get("livekit_url")
+            livekit_token = start_data.get("livekit_client_token")
     except Exception as exc:
-        return _response(500, {"error": f"LiveAvatar token creation failed: {str(exc)}"})
+        return _response(500, {"error": f"Session start failed: {str(exc)}"})
 
     return _response(200, {
         "session_token": session_token,
+        "livekit_url": livekit_url,
+        "livekit_token": livekit_token,
         "audio_url": item.get("audio_url"),
         "message": item.get("message"),
     })

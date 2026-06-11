@@ -1,4 +1,4 @@
-import { LiveAvatarSession, AgentEventsEnum } from "@heygen/liveavatar-web-sdk";
+import { Room, RoomEvent, Track } from 'livekit-client';
 
 const params = new URLSearchParams(window.location.search);
 const botId = params.get("bot_id");
@@ -10,59 +10,47 @@ const status = document.getElementById("status");
 
 async function getConfig() {
   if (!botId || !tokenUrl) throw new Error("Missing bot_id or token_url");
-
   const resp = await fetch(`${decodeURIComponent(tokenUrl)}?bot_id=${botId}`);
   if (!resp.ok) throw new Error(`Config fetch failed: ${resp.status}`);
-
   return await resp.json();
 }
 
 async function start() {
   const config = await getConfig();
-
   console.log("Avatar config loaded", config);
-  status.textContent = "Starting LiveAvatar...";
+  status.textContent = "Connecting to LiveAvatar...";
 
-  const sessionToken =
-    config.session_token ||
-    config.sessionToken ||
-    config.token;
-
-  console.log("sessionToken type", typeof sessionToken, sessionToken?.slice?.(0, 20));
-
-  if (!sessionToken || typeof sessionToken !== "string") {
-    throw new Error("Missing or invalid LiveAvatar session token");
+  if (!config.livekit_url || !config.livekit_token) {
+    throw new Error("Missing LiveKit credentials");
   }
 
-  const session = new LiveAvatarSession();
+  const room = new Room();
 
-  session.on(AgentEventsEnum.SESSION_STATE_UPDATED, (event) => {
-    console.log("LiveAvatar state", event);
-  });
-
-  session.on(AgentEventsEnum.VIDEO_STREAM_READY, (event) => {
-    console.log("Video stream ready", event);
-
-    const stream = event?.stream || event;
-
-    if (stream instanceof MediaStream) {
-      video.srcObject = stream;
-      status.textContent = "LiveAvatar connected";
-    } else {
-      console.error("No MediaStream found in VIDEO_STREAM_READY event", event);
+  room.on(RoomEvent.TrackSubscribed, (track) => {
+    if (track.kind === Track.Kind.Video) {
+      track.attach(video);
+      video.style.display = "block";
+      status.textContent = "Avatar connected";
+    }
+    if (track.kind === Track.Kind.Audio) {
+      track.attach(audio);
     }
   });
 
-  await session.startSession({ token: sessionToken });
+  room.on(RoomEvent.Disconnected, () => {
+    status.textContent = "Disconnected";
+  });
+
+  await room.connect(config.livekit_url, config.livekit_token);
+  status.textContent = "Connected — waiting for avatar...";
 
   if (config.audio_url) {
     audio.src = config.audio_url;
     audio.play().catch(err => console.warn("Autoplay blocked:", err));
-  } 
+  }
 }
-  
 
 start().catch((err) => {
   console.error("LiveAvatar failed", err);
-  status.textContent = `LiveAvatar failed: ${err.message}`;
+  status.textContent = `Failed: ${err.message}`;
 });
