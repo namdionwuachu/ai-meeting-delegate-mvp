@@ -80,5 +80,16 @@ async function start() {
 }
 start().catch((err) => {
   console.error("LiveAvatar failed", err);
-  status.textContent = `Failed: ${err.message}`;
+  status.textContent = `Connecting...`;
+  
+  // Fall back to static avatar page
+  const botId = params.get("bot_id");
+  const audioUrl = params.get("audio_url");
+  const message = params.get("message");
+  const staticUrl = `http://aidelegatemvpstack-avatar-static.s3-website-us-east-1.amazonaws.com/avatar.html`
+    + (botId ? `?bot_id=${botId}` : "")
+    + (audioUrl ? `&audio_url=${audioUrl}` : "")
+    + (message ? `&message=${message}` : "");
+  
+  window.location.href = staticUrl;
 });
