@@ -454,7 +454,16 @@ class AIDelegateStack(Stack):
             runtime=_lambda.Runtime.PYTHON_3_12,
             architecture=_lambda.Architecture.ARM_64,
             handler="avatar.token_handler.handler",
-            code=_lambda.Code.from_asset(service_code_path),
+            code=_lambda.Code.from_asset(
+                service_code_path,
+                bundling=BundlingOptions(
+                    image=_lambda.Runtime.PYTHON_3_12.bundling_image,
+                    command=[
+                        "bash", "-c",
+                        "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output"
+                    ],
+                ),
+            ),
             timeout=Duration.seconds(10),
             memory_size=256,
             log_group=logs.LogGroup.from_log_group_name(
