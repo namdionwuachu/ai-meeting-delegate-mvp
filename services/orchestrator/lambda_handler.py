@@ -188,6 +188,7 @@ def handler(event, context):
                                 print(f"[REALTIME] livekit audio published for lip-sync")
 
                         except Exception as lk_err:
+                            import traceback as tb
                             print(f"[REALTIME] livekit_publish_failed error={str(lk_err)}")
                         # ── End LiveKit audio publish ────────────────────────────
 
