@@ -315,10 +315,7 @@ class AIDelegateStack(Stack):
                         cp -au . /asset-output && \
                         echo '--- miniaudio files ---' && \
                         find /asset-output -iname '*miniaudio*' -print && \
-                        SO_FILE=$(find /asset-output -name '_miniaudio*.so' | head -n 1) && \
-                        echo "SO_FILE=$SO_FILE" && \
-                        test -n "$SO_FILE" && \
-                        cp "$SO_FILE" /asset-output/_miniaudio.abi3.so && \
+                        test -f /asset-output/_miniaudio.abi3.so && \
                         ls -l /asset-output/_miniaudio.abi3.so
                         """
                     ],
