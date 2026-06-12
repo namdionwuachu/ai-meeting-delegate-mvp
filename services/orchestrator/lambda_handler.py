@@ -179,9 +179,22 @@ def handler(event, context):
                             )
                             pcm_data = bytes(decoded.samples)
                             print(f"[REALTIME] lipsync pcm_bytes={len(pcm_data)}")
-
+                            
                             async def stream_audio():
                                 async with ws_lib.connect(ws_url, ping_interval=None) as ws:
+                                    # Wait for session.state_updated connected before sending audio
+                                    try:
+                                        async with asyncio.timeout(10):
+                                            async for msg in ws:
+                                                data = _json.loads(msg)
+                                                if data.get("type") == "session.state_updated" and data.get("state") == "connected":
+                                                    print(f"[REALTIME] lipsync session connected")
+                                                    break
+                                                if data.get("state") == "connected":
+                                                    break
+                                    except asyncio.TimeoutError:
+                                        print(f"[REALTIME] lipsync session connected timeout — sending anyway")
+
                                     await ws.send(_json.dumps({
                                         "type": "start",
                                         "encoding": "pcm_s16le",
@@ -206,6 +219,33 @@ def handler(event, context):
                                         "type": "agent.speak_end",
                                     }))
                                     print(f"[REALTIME] lipsync audio streamed successfully")
+
+                            #async def stream_audio():
+                                #async with ws_lib.connect(ws_url, ping_interval=None) as ws:
+                                    #await ws.send(_json.dumps({
+                                        #"type": "start",
+                                        #"encoding": "pcm_s16le",
+                                        #"sample_rate": 24000,
+                                        #"channels": 1,
+                                    #}))
+                                    #FIRST_CHUNK = int(24000 * 2 * 0.4)
+                                    #ONE_SEC = 24000 * 2
+                                    #chunk_size = FIRST_CHUNK
+                                    #offset = 0
+                                    #while offset < len(pcm_data):
+                                        #chunk = pcm_data[offset:offset + chunk_size]
+                                        #b64 = base64.b64encode(chunk).decode("ascii")
+                                        #await ws.send(_json.dumps({
+                                            #"type": "agent.speak",
+                                            #"audio": b64,
+                                        #}))
+                                        #offset += chunk_size
+                                        #chunk_size = ONE_SEC
+                                        #await asyncio.sleep(0.05)
+                                    #await ws.send(_json.dumps({
+                                        #"type": "agent.speak_end",
+                                    #}))
+                                    #print(f"[REALTIME] lipsync audio streamed successfully")
 
                             loop = asyncio.new_event_loop()
                             asyncio.set_event_loop(loop)
