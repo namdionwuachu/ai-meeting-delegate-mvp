@@ -8,7 +8,7 @@ from urllib.parse import quote
 from persona.persona_loader import load_persona
 from persona.examples_loader import load_examples
 from persona.rag_retriever import retrieve_context
-from persona.response_generator import generate_delegate_response
+from persona.response_generator import generate_delegate   _response
 from policy.decision_rules import check_policy
 from policy.confidence import score_confidence
 from policy.output_guardrails import check_output
@@ -84,8 +84,8 @@ def handler(event, context):
             if audio_url and bot_id:
                 # ── Audio now delivered via LiveAvatar WebSocket lip-sync ──
                 # start_audio_output removed to prevent dual audio streams
-                #result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
-                #print(f"[REALTIME] start_audio_output result={result}")
+                result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
+                print(f"[REALTIME] start_audio_output result={result}")
 
                 avatar_base_url = os.environ.get("AVATAR_STATIC_URL", "")
                 encoded_audio = quote(audio_url, safe="")

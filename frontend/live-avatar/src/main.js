@@ -34,7 +34,9 @@ async function start() {
       status.textContent = "Avatar connected";
     }
     if (track.kind === Track.Kind.Audio) {
-      track.attach(audio);
+      // Don't attach LiveAvatar audio - meeting audio comes from Recall start_audio_output
+      console.log("LiveAvatar audio track received but not attached - using Recall audio");
+      //track.attach(audio);
     }
   });
 
