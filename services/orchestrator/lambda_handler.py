@@ -89,119 +89,132 @@ def handler(event, context):
                 encoded_audio = quote(audio_url, safe="")
                 encoded_message = quote(answer[:180], safe="")
                 liveavatar_ok = False
-                           
+                
                 try:
-                    from avatar.liveavatar_client import create_session_token
                     import time
+                    table = dynamodb.Table(os.environ["SESSIONS_TABLE"])
+                    avatar_api_url = os.environ.get("AVATAR_TOKEN_API_URL", "")
 
-                    session = create_session_token()
-                    if session.get("created"):
-                        table = dynamodb.Table(os.environ["SESSIONS_TABLE"])
+                    # Check if avatar already injected for this bot
+                    existing = table.get_item(
+                        Key={
+                            "meeting_id": bot_id,
+                            "event_ts": "liveavatar_token",
+                        }
+                    ).get("Item", {})
+
+                    if not existing.get("livekit_url"):
+                        # ── First response — create session and inject avatar page ──
+                        from avatar.liveavatar_client import create_session_token
+                        session = create_session_token()
+                        if not session.get("created"):
+                            raise Exception(f"LiveAvatar token failed: {session}")
+
                         table.put_item(Item={
                             "meeting_id": bot_id,
                             "event_ts": "liveavatar_token",
                             "session_token": session["session_token"],
                             "audio_url": audio_url,
                             "message": answer[:180],
-                            "ttl": int(time.time()) + 300,
+                            "ttl": int(time.time()) + 3600,
                         })
 
-                        avatar_api_url = os.environ.get("AVATAR_TOKEN_API_URL", "")
                         avatar_url = (
                             f"{avatar_base_url}/live/index.html"
                             f"?bot_id={bot_id}"
                             f"&token_url={quote(avatar_api_url, safe='')}"
-                        
                         )
                         print(f"[REALTIME] avatar_url_length={len(avatar_url)} avatar_url={avatar_url[:200]!r}")
                         avatar_result = start_output_media(
                             bot_id=bot_id,
                             webpage_url=avatar_url,
                         )
-                      
                         print(f"[REALTIME] liveavatar avatar_result={avatar_result}")
-                        liveavatar_ok = True
-                        # ── LiveAvatar WebSocket lip-sync ────────────────────────
-                        # Send ElevenLabs PCM audio to LiveAvatar via WebSocket
-                        # Wire protocol from avatar_ws.py reference implementation
-                        # start → agent.speak (PCM chunks) → agent.speak_end
-                        try:
-                            import requests as req_lib
-                            import base64
-                            import asyncio
-                            import json as _json
-                            import websockets as ws_lib
-                            import miniaudio
-
-                            # Get ws_url from token handler
-                            token_resp = req_lib.get(
-                                f"{avatar_api_url}?bot_id={bot_id}",
-                                timeout=15,
-                            )
-                            token_data = token_resp.json()
-                            ws_url = token_data.get("ws_url")
-                            print(f"[REALTIME] lipsync ws_url={ws_url!r}")
-
-                            if ws_url:
-                                # Fetch MP3 from S3
-                                audio_resp = req_lib.get(audio_url, timeout=15)
-                                mp3_bytes = audio_resp.content
-
-                                # Convert MP3 to PCM 24kHz mono 16-bit
-                                decoded = miniaudio.decode(
-                                    mp3_bytes,
-                                    output_format=miniaudio.SampleFormat.SIGNED16,
-                                    nchannels=1,
-                                    sample_rate=24000,
-                                )
-                                pcm_data = bytes(decoded.samples)
-                                print(f"[REALTIME] lipsync pcm_bytes={len(pcm_data)}")
-
-                                async def stream_audio():
-                                    async with ws_lib.connect(ws_url, ping_interval=None) as ws:
-                                        # Declare audio format
-                                        await ws.send(_json.dumps({
-                                            "type": "start",
-                                            "encoding": "pcm_s16le",
-                                            "sample_rate": 24000,
-                                            "channels": 1,
-                                        }))
-
-                                        # First chunk 400ms, rest 1 second
-                                        FIRST_CHUNK = int(24000 * 2 * 0.4)
-                                        ONE_SEC = 24000 * 2
-                                        chunk_size = FIRST_CHUNK
-                                        offset = 0
-
-                                        while offset < len(pcm_data):
-                                            chunk = pcm_data[offset:offset + chunk_size]
-                                            b64 = base64.b64encode(chunk).decode("ascii")
-                                            await ws.send(_json.dumps({
-                                                "type": "agent.speak",
-                                                "audio": b64,
-                                            }))
-                                            offset += chunk_size
-                                            chunk_size = ONE_SEC
-                                            await asyncio.sleep(0.05)
-
-                                        # End of utterance
-                                        await ws.send(_json.dumps({
-                                            "type": "agent.speak_end",
-                                        }))
-                                        print(f"[REALTIME] lipsync audio streamed successfully")
-
-                                loop = asyncio.new_event_loop()
-                                asyncio.set_event_loop(loop)
-                                loop.run_until_complete(stream_audio())
-                                loop.close()
-
-                        except Exception as lk_err:
-                            import traceback as tb
-                            print(f"[REALTIME] lipsync_failed error={str(lk_err)!r} traceback={tb.format_exc()}")
-                        # ── End LiveAvatar WebSocket lip-sync ────────────────────
-
                     else:
-                        raise Exception(f"LiveAvatar token failed: {session}")
+                        # ── Subsequent responses — update audio_url only ──
+                        print(f"[REALTIME] liveavatar already injected, updating audio_url for lip-sync")
+                        table.update_item(
+                            Key={
+                                "meeting_id": bot_id,
+                                "event_ts": "liveavatar_token",
+                            },
+                            UpdateExpression="SET audio_url = :au, message = :msg",
+                            ExpressionAttributeValues={
+                                ":au": audio_url,
+                                ":msg": answer[:180],
+                            },
+                        )
+
+                    liveavatar_ok = True
+                    # ── LiveAvatar WebSocket lip-sync ────────────────────────
+                    # Send ElevenLabs PCM audio to LiveAvatar via WebSocket
+                    # Wire protocol: start → agent.speak (PCM chunks) → agent.speak_end
+                    try:
+                        import requests as req_lib
+                        import base64
+                        import asyncio
+                        import json as _json
+                        import websockets as ws_lib
+                        import miniaudio
+
+                        token_resp = req_lib.get(
+                            f"{avatar_api_url}?bot_id={bot_id}",
+                            timeout=15,
+                        )
+                        token_data = token_resp.json()
+                        ws_url = token_data.get("ws_url")
+                        print(f"[REALTIME] lipsync ws_url={ws_url!r}")
+
+                        if ws_url:
+                            audio_resp = req_lib.get(audio_url, timeout=15)
+                            mp3_bytes = audio_resp.content
+
+                            decoded = miniaudio.decode(
+                                mp3_bytes,
+                                output_format=miniaudio.SampleFormat.SIGNED16,
+                                nchannels=1,
+                                sample_rate=24000,
+                            )
+                            pcm_data = bytes(decoded.samples)
+                            print(f"[REALTIME] lipsync pcm_bytes={len(pcm_data)}")
+
+                            async def stream_audio():
+                                async with ws_lib.connect(ws_url, ping_interval=None) as ws:
+                                    await ws.send(_json.dumps({
+                                        "type": "start",
+                                        "encoding": "pcm_s16le",
+                                        "sample_rate": 24000,
+                                        "channels": 1,
+                                    }))
+                                    FIRST_CHUNK = int(24000 * 2 * 0.4)
+                                    ONE_SEC = 24000 * 2
+                                    chunk_size = FIRST_CHUNK
+                                    offset = 0
+                                    while offset < len(pcm_data):
+                                        chunk = pcm_data[offset:offset + chunk_size]
+                                        b64 = base64.b64encode(chunk).decode("ascii")
+                                        await ws.send(_json.dumps({
+                                            "type": "agent.speak",
+                                            "audio": b64,
+                                        }))
+                                        offset += chunk_size
+                                        chunk_size = ONE_SEC
+                                        await asyncio.sleep(0.05)
+                                    await ws.send(_json.dumps({
+                                        "type": "agent.speak_end",
+                                    }))
+                                    print(f"[REALTIME] lipsync audio streamed successfully")
+
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            loop.run_until_complete(stream_audio())
+                            loop.close()
+
+                    except Exception as lk_err:
+                        import traceback as tb
+                        print(f"[REALTIME] lipsync_failed error={str(lk_err)!r} traceback={tb.format_exc()}")
+                    # ── End LiveAvatar WebSocket lip-sync ────────────────────            
+                     
 
                 except Exception as e:
                     print(f"[REALTIME] liveavatar_failed fallback_to_static error={str(e)}")
@@ -338,4 +351,4 @@ def handler(event, context):
 
     except Exception as exc:
         print(traceback.format_exc())
-        return _response(500, {"error": str(exc)})# Fri 12 Jun 2026 00:01:22 BST
+        return _response(500, {"error": str(exc)})

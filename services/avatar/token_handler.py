@@ -43,10 +43,11 @@ def handler(event, context):
         # Return cached LiveKit credentials if already available
         if item.get("livekit_url") and item.get("livekit_token"):
             print(f"[TOKEN_HANDLER] Returning cached LiveKit credentials for bot_id={bot_id}")
+            cached_ws = item.get("ws_url") or f"wss://webrtc-signaling.heygen.io/v2-alpha/interactive-avatar/session/{item.get('session_token', '')}"
             return _response(200, {
                 "livekit_url": item["livekit_url"],
                 "livekit_token": item["livekit_token"],
-                "ws_url": item.get("ws_url"),
+                "ws_url": cached_ws,
                 "audio_url": item.get("audio_url"),
                 "message": item.get("message"),
             })
