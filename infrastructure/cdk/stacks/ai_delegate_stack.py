@@ -302,13 +302,7 @@ class AIDelegateStack(Stack):
                     command=[
                         "bash",
                         "-c",
-                        "pip install "
-                        "--platform manylinux2014_aarch64 "
-                        "--implementation cp "
-                        "--python-version 3.12 "
-                        "--only-binary=:all: "
-                        "-r requirements.txt "
-                        "-t /asset-output && "
+                        "pip install -r requirements.txt -t /asset-output && "
                         "cp -au . /asset-output && "
                         "find /asset-output -name '*miniaudio*' -print"
                     ],
