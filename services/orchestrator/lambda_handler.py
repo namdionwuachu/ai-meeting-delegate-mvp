@@ -394,3 +394,4 @@ def handler(event, context):
     except Exception as exc:
         print(traceback.format_exc())
         return _response(500, {"error": str(exc)})
+# forced redeploy Fri 12 Jun 2026 14:59:35 BST
