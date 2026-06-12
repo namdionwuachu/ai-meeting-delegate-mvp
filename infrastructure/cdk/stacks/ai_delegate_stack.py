@@ -293,7 +293,7 @@ class AIDelegateStack(Stack):
             "DelegateOrchestratorFunction",
             function_name=f"{construct_id}-delegate-orchestrator",
             runtime=_lambda.Runtime.PYTHON_3_12,
-            architecture=_lambda.Architecture.ARM_64,
+            architecture=_lambda.Architecture.X86_64,
             handler="orchestrator.lambda_handler.handler",
             code=_lambda.Code.from_asset(
                 service_code_path,
@@ -306,7 +306,7 @@ class AIDelegateStack(Stack):
                         python -m pip install \
                         --disable-pip-version-check \
                         --no-cache-dir \
-                        --platform manylinux2014_aarch64 \
+                        --platform manylinux2014_x86_64 \
                         --implementation cp \
                         --python-version 3.12 \
                         --only-binary=:all: \
