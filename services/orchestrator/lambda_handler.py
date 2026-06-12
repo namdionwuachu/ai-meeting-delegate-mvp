@@ -82,8 +82,10 @@ def handler(event, context):
             avatar_result = None
 
             if audio_url and bot_id:
-                result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
-                print(f"[REALTIME] start_audio_output result={result}")
+                # ── Audio now delivered via LiveAvatar WebSocket lip-sync ──
+                # start_audio_output removed to prevent dual audio streams
+                #result = start_audio_output(bot_id=bot_id, audio_url=audio_url)
+                #print(f"[REALTIME] start_audio_output result={result}")
 
                 avatar_base_url = os.environ.get("AVATAR_STATIC_URL", "")
                 encoded_audio = quote(audio_url, safe="")
