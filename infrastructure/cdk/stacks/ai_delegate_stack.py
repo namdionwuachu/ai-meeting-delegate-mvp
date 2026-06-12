@@ -302,8 +302,8 @@ class AIDelegateStack(Stack):
                     command=[
                         "bash",
                         "-c",
-                        "pip install --upgrade pip && "
-                        "pip install --platform manylinux2014_aarch64 "
+                        "pip install "
+                        "--platform manylinux2014_aarch64 "
                         "--implementation cp "
                         "--python-version 3.12 "
                         "--only-binary=:all: "
