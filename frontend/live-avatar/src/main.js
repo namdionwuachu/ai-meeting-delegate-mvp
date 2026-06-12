@@ -1,4 +1,4 @@
-import { Room, RoomEvent, Track } from 'livekit-client';
+import { LiveAvatarSession, AgentEventsEnum } from "@heygen/liveavatar-web-sdk";
 
 const params = new URLSearchParams(window.location.search);
 const botId = params.get("bot_id");
@@ -9,87 +9,124 @@ const audio = document.getElementById("audioPlayer");
 const status = document.getElementById("status");
 
 async function getConfig() {
-  if (!botId || !tokenUrl) throw new Error("Missing bot_id or token_url");
-  const resp = await fetch(`${decodeURIComponent(tokenUrl)}?bot_id=${botId}`);
-  if (!resp.ok) throw new Error(`Config fetch failed: ${resp.status}`);
+  if (!botId || !tokenUrl) {
+    throw new Error("Missing bot_id or token_url");
+  }
+
+  const resp = await fetch(
+    `${decodeURIComponent(tokenUrl)}?bot_id=${botId}`
+  );
+
+  if (!resp.ok) {
+    throw new Error(`Config fetch failed: ${resp.status}`);
+  }
+
   return await resp.json();
 }
 
 async function start() {
   const config = await getConfig();
+
   console.log("Avatar config loaded", config);
+
+  const sessionToken = config.session_token;
+
+  if (!sessionToken) {
+    throw new Error("Missing session_token");
+  }
+
   status.textContent = "Connecting to LiveAvatar...";
 
-  if (!config.livekit_url || !config.livekit_token) {
-    throw new Error("Missing LiveKit credentials");
-  }
+  const session = new LiveAvatarSession({
+    sessionToken,
+  });
 
-  const room = new Room();
+  session.on(
+    AgentEventsEnum.VIDEO_STREAM_READY,
+    (event) => {
+      console.log("VIDEO_STREAM_READY", event);
 
-  room.on(RoomEvent.TrackSubscribed, (track) => {
-    if (track.kind === Track.Kind.Video) {
-      track.attach(video);
-      video.style.display = "block";
+      const stream = event?.stream || event;
+
+      if (stream instanceof MediaStream) {
+        video.srcObject = stream;
+        video.style.display = "block";
+        status.textContent = "Avatar connected";
+      } else {
+        console.error(
+          "No MediaStream found in VIDEO_STREAM_READY",
+          event
+        );
+      }
+    }
+  );
+
+  session.on(
+    AgentEventsEnum.AVATAR_SPEAK_STARTED,
+    (event) => {
+      console.log("AVATAR_SPEAK_STARTED", event);
+      status.textContent = "Avatar speaking...";
+    }
+  );
+
+  session.on(
+    AgentEventsEnum.AVATAR_SPEAK_ENDED,
+    (event) => {
+      console.log("AVATAR_SPEAK_ENDED", event);
       status.textContent = "Avatar connected";
     }
-    if (track.kind === Track.Kind.Audio) {
-      track.attach(audio);
-    }
-  });
+  );
 
-  room.on(RoomEvent.Disconnected, () => {
-    status.textContent = "Disconnected";
-  });
+  console.log("Starting session...");
 
-  await room.connect(config.livekit_url, config.livekit_token);
-  status.textContent = "Connected — waiting for avatar...";
-  if (config.audio_url) {
+  await session.startSession();
+
+  console.log("Session started");
+
+  status.textContent = "Testing avatar speech...";
+
+  setTimeout(() => {
     try {
-      const resp = await fetch(config.audio_url);
-      const arrayBuffer = await resp.arrayBuffer();
-      const audioCtx = new AudioContext({ sampleRate: 24000 });
-      const decoded = await audioCtx.decodeAudioData(arrayBuffer);
-      
-      // Create MediaStream from audio buffer
-      const source = audioCtx.createBufferSource();
-      source.buffer = decoded;
-      const destination = audioCtx.createMediaStreamDestination();
-      source.connect(destination);
-      
-      // Publish as LiveKit audio track
-      const { LocalAudioTrack } = await import('livekit-client');
-      const audioTrack = new LocalAudioTrack(
-        destination.stream.getAudioTracks()[0],
-        undefined,
-        false
+      const textEventId = session.repeat(
+        "Hello, this is a LiveAvatar text command test."
       );
-      await room.localParticipant.publishTrack(audioTrack);
-      
-      // Start playing
-      source.start();
-      status.textContent = "Speaking…";
-      
-      source.onended = async () => {
-        await room.localParticipant.unpublishTrack(audioTrack);
-        status.textContent = "Listening…";
-      };
+
+      console.log(
+        "repeat text event_id",
+        textEventId
+      );
+
+      status.textContent =
+        "Sent LiveAvatar text command";
     } catch (err) {
-      console.error("[LIPSYNC] Error:", err);
+      console.error(
+        "repeat text failed",
+        err
+      );
+
+      status.textContent =
+        `repeat text failed: ${err.message}`;
     }
-  }
+  }, 3000);
 }
+
 start().catch((err) => {
   console.error("LiveAvatar failed", err);
-  status.textContent = `Connecting...`;
-  
-  // Fall back to static avatar page
-  const botId = params.get("bot_id");
-  const audioUrl = params.get("audio_url");
-  const message = params.get("message");
-  const staticUrl = `http://aidelegatemvpstack-avatar-static.s3-website-us-east-1.amazonaws.com/avatar.html`
-    + (botId ? `?bot_id=${botId}` : "")
-    + (audioUrl ? `&audio_url=${audioUrl}` : "")
-    + (message ? `&message=${message}` : "");
-  
-  window.location.href = staticUrl;
+
+  status.textContent =
+    `LiveAvatar failed: ${err.message}`;
+
+  setTimeout(() => {
+    const botId = params.get("bot_id");
+    const audioUrl = params.get("audio_url");
+    const message = params.get("message");
+
+    const staticUrl =
+      "http://aidelegatemvpstack-avatar-static.s3-website-us-east-1.amazonaws.com/avatar.html"
+      + (botId ? `?bot_id=${botId}` : "")
+      + (audioUrl ? `&audio_url=${audioUrl}` : "")
+      + (message ? `&message=${message}` : "");
+
+    window.location.href = staticUrl;
+  }, 10000);
 });
