@@ -302,21 +302,25 @@ class AIDelegateStack(Stack):
                     command=[
                         "bash",
                         "-c",
-                        "pip install --upgrade pip && "
-                        "pip install --platform manylinux2014_aarch64 "
-                        "--implementation cp "
-                        "--python-version 3.12 "
-                        "--only-binary=:all: "
-                        "-r requirements.txt "
-                        "-t /asset-output && "
-                        "cp -au . /asset-output && "
-                        "echo '--- miniaudio files ---' && "
-                        "find /asset-output -iname '*miniaudio*' -print && "
-                        "SO_FILE=$(find /asset-output -name '_miniaudio*.so' | head -n 1) && "
-                        "echo \"SO_FILE=$SO_FILE\" && "
-                        "test -n \"$SO_FILE\" && "
-                        "cp \"$SO_FILE\" /asset-output/_miniaudio.abi3.so && "
-                        "ls -l /asset-output/_miniaudio.abi3.so"
+                        """
+                        python -m pip install \
+                        --disable-pip-version-check \
+                        --no-cache-dir \
+                        --platform manylinux2014_aarch64 \
+                        --implementation cp \
+                        --python-version 3.12 \
+                        --only-binary=:all: \
+                        -r requirements.txt \
+                        -t /asset-output && \
+                        cp -au . /asset-output && \
+                        echo '--- miniaudio files ---' && \
+                        find /asset-output -iname '*miniaudio*' -print && \
+                        SO_FILE=$(find /asset-output -name '_miniaudio*.so' | head -n 1) && \
+                        echo "SO_FILE=$SO_FILE" && \
+                        test -n "$SO_FILE" && \
+                        cp "$SO_FILE" /asset-output/_miniaudio.abi3.so && \
+                        ls -l /asset-output/_miniaudio.abi3.so
+                        """
                     ],
                 ),
             ),
