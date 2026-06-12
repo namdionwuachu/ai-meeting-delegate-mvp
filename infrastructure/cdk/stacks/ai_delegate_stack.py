@@ -302,7 +302,15 @@ class AIDelegateStack(Stack):
                     command=[
                         "bash",
                         "-c",
-                        "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output"
+                        "pip install --upgrade pip && "
+                        "pip install --platform manylinux2014_aarch64 "
+                        "--implementation cp "
+                        "--python-version 3.12 "
+                        "--only-binary=:all: "
+                        "-r requirements.txt "
+                        "-t /asset-output && "
+                        "cp -au . /asset-output && "
+                        "find /asset-output -name '*miniaudio*' -print"
                     ],
                 ),
             ),
@@ -315,8 +323,9 @@ class AIDelegateStack(Stack):
             ),
             tracing=_lambda.Tracing.ACTIVE,
             environment=common_env,
-            )
-
+        )
+   
+         
         voice_fn = _lambda.Function(
             self,
             "VoiceFunction",
