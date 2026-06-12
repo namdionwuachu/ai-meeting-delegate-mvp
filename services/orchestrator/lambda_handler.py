@@ -8,7 +8,7 @@ from urllib.parse import quote
 from persona.persona_loader import load_persona
 from persona.examples_loader import load_examples
 from persona.rag_retriever import retrieve_context
-from persona.response_generator import generate_delegate   _response
+from persona.response_generator import generate_delegate_response
 from policy.decision_rules import check_policy
 from policy.confidence import score_confidence
 from policy.output_guardrails import check_output
